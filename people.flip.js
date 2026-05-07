@@ -1,38 +1,46 @@
-function initPersonalCutoutFlipGrid() {
-  if (
-    typeof gsap === "undefined" ||
-    typeof ScrollTrigger === "undefined" ||
-    typeof Flip === "undefined"
-  ) return;
+function initPersonalCutoutToGrid() {
+  if (typeof gsap === "undefined" || typeof ScrollTrigger === "undefined") return;
 
-  gsap.registerPlugin(ScrollTrigger, Flip);
+  gsap.registerPlugin(ScrollTrigger);
 
   const hero = document.querySelector(".section_bigtext_hero");
-  const originalParent = document.querySelector(".future_hero_inner");
-  const grid = document.querySelector(".personal_cutout_grid");
   const items = gsap.utils.toArray(".personal_cutout_wrapper");
+  const targets = gsap.utils.toArray(".personal_cutout_target");
 
-  if (!hero || !originalParent || !grid || !items.length) return;
+  if (!hero || !items.length || targets.length < items.length) return;
 
-  const state = Flip.getState(items);
+  function getDelta(item, target) {
+    const itemRect = item.getBoundingClientRect();
+    const targetRect = target.getBoundingClientRect();
 
-  items.forEach((item) => grid.appendChild(item));
+    return {
+      x: targetRect.left + targetRect.width / 2 - (itemRect.left + itemRect.width / 2),
+      y: targetRect.top + targetRect.height / 2 - (itemRect.top + itemRect.height / 2),
+    };
+  }
 
-  const flip = Flip.from(state, {
-    absolute: true,
-    ease: "none",
-    stagger: 0.03,
-    paused: true,
+  const tl = gsap.timeline({
+    scrollTrigger: {
+      trigger: hero,
+      start: "top top",
+      end: "+=100%",
+      scrub: true,
+      invalidateOnRefresh: true,
+    },
   });
 
-  ScrollTrigger.create({
-    trigger: hero,
-    start: "top top",
-    endTrigger: grid,
-    end: "top center",
-    scrub: true,
-    animation: flip,
+  items.forEach((item, i) => {
+    tl.to(
+      item,
+      {
+        x: () => getDelta(item, targets[i]).x,
+        y: () => getDelta(item, targets[i]).y,
+        scale: 0.85,
+        ease: "none",
+      },
+      0
+    );
   });
 }
 
-document.addEventListener("DOMContentLoaded", initPersonalCutoutFlipGrid);
+document.addEventListener("DOMContentLoaded", initPersonalCutoutToGrid);
