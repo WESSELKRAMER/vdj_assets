@@ -35,7 +35,7 @@ function initPersonalCutoutToGrid() {
     {
       x: () => getDelta(item, targets[i]).x,
       y: () => getDelta(item, targets[i]).y,
-      rotation: gsap.utils.random(-12, 12),
+      rotation: gsap.utils.random(-0, 0),
       scale: 0.9,
       opacity: 1,
       ease: "none",
