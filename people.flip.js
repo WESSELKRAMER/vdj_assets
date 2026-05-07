@@ -30,17 +30,19 @@ function initPersonalCutoutToGrid() {
   });
 
   items.forEach((item, i) => {
-    tl.to(
-      item,
-      {
-        x: () => getDelta(item, targets[i]).x,
-        y: () => getDelta(item, targets[i]).y,
-        scale: 0.85,
-        ease: "none",
-      },
-      0
-    );
-  });
+  tl.to(
+    item,
+    {
+      x: () => getDelta(item, targets[i]).x,
+      y: () => getDelta(item, targets[i]).y,
+      rotation: gsap.utils.random(-12, 12),
+      scale: 0.9,
+      opacity: 1,
+      ease: "none",
+    },
+    0
+  );
+});
 }
 
 document.addEventListener("DOMContentLoaded", initPersonalCutoutToGrid);
