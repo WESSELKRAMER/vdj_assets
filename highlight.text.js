@@ -1,41 +1,57 @@
-gsap.registerPlugin(ScrollTrigger, SplitText)
-  
-function initHighlightText(){
+gsap.registerPlugin(ScrollTrigger, SplitText);
 
-  let splitHeadingTargets = document.querySelectorAll("[data-highlight-text]")
+function initHighlightText() {
+  const splitHeadingTargets = document.querySelectorAll("[data-highlight-text]");
+
   splitHeadingTargets.forEach((heading) => {
-    
-    const scrollStart = heading.getAttribute("data-highlight-scroll-start") || "top 90%"
-    const scrollEnd = heading.getAttribute("data-highlight-scroll-end") || "center 40%"
-    const fadedValue = heading.getAttribute("data-highlight-fade") || 0.2 // Opacity of letter
-    const staggerValue =  heading.getAttribute("data-highlight-stagger") || 0.1 // Smoother reveal
-    
+    const scrollStart = heading.getAttribute("data-highlight-scroll-start") || "top 90%";
+    const scrollEnd = heading.getAttribute("data-highlight-scroll-end") || "center 40%";
+    const fadedValue = parseFloat(heading.getAttribute("data-highlight-fade")) || 0.2;
+    const staggerValue = parseFloat(heading.getAttribute("data-highlight-stagger")) || 0.1;
+
+    const isImmediate = heading.getAttribute("data-highlight-immediate") === "true";
+    const immediateDelay = parseFloat(heading.getAttribute("data-highlight-delay")) || 0.2;
+    const immediateDuration = parseFloat(heading.getAttribute("data-highlight-duration")) || 1.2;
+
     new SplitText(heading, {
       type: "words, chars",
       autoSplit: true,
       onSplit(self) {
-        let ctx = gsap.context(() => {
-          let tl = gsap.timeline({
+        const ctx = gsap.context(() => {
+          if (isImmediate) {
+            gsap.from(self.chars, {
+              autoAlpha: fadedValue,
+              stagger: staggerValue,
+              duration: immediateDuration,
+              delay: immediateDelay,
+              ease: "power2.out"
+            });
+
+            return;
+          }
+
+          const tl = gsap.timeline({
             scrollTrigger: {
               scrub: true,
-              trigger: heading, 
+              trigger: heading,
               start: scrollStart,
-              end: scrollEnd,
+              end: scrollEnd
             }
-          })
-          tl.from(self.chars,{
+          });
+
+          tl.from(self.chars, {
             autoAlpha: fadedValue,
             stagger: staggerValue,
             ease: "linear"
-          })
+          });
         });
-        return ctx; // return our animations so GSAP can clean them up when onSplit fires
+
+        return ctx;
       }
-    });    
+    });
   });
 }
 
-// Initialize Highlight Text on Scroll
-document.addEventListener("DOMContentLoaded", () =>{
+document.addEventListener("DOMContentLoaded", () => {
   initHighlightText();
 });
