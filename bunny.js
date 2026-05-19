@@ -46,11 +46,23 @@ function initBunnyPlayerBackground() {
 
     if (autoplay) video.autoplay = false;
 
-    var isSafariNative = !!video.canPlayType("application/vnd.apple.mpegurl");
-    var canUseHlsJs = !!(window.Hls && Hls.isSupported()) && !isSafariNative;
+    var ua = navigator.userAgent.toLowerCase();
+    var isSafari =
+      ua.indexOf("safari") > -1 &&
+      ua.indexOf("chrome") === -1 &&
+      ua.indexOf("crios") === -1 &&
+      ua.indexOf("chromium") === -1 &&
+      ua.indexOf("android") === -1;
+
+    var isSafariNative =
+      isSafari && !!video.canPlayType("application/vnd.apple.mpegurl");
+
+    var canUseHlsJs =
+      !!(window.Hls && Hls.isSupported()) && !isSafariNative;
 
     console.log("Bunny player debug", {
       src: src,
+      isSafari: isSafari,
       isSafariNative: isSafariNative,
       hasHls: !!window.Hls,
       hlsSupported: !!(window.Hls && Hls.isSupported()),
@@ -70,21 +82,7 @@ function initBunnyPlayerBackground() {
         player._hls = null;
       }
 
-      if (isSafariNative) {
-        console.log("Using Safari/native HLS. HLS.js quality forcing will not run.");
-
-        video.src = src;
-
-        video.addEventListener("loadedmetadata", function () {
-          console.log("Native video metadata loaded", {
-            videoWidth: video.videoWidth,
-            videoHeight: video.videoHeight
-          });
-
-          readyIfIdle(player, pendingPlay);
-        }, { once: true });
-
-      } else if (canUseHlsJs) {
+      if (canUseHlsJs) {
         var hls = new Hls({
           startLevel: -1,
           capLevelToPlayerSize: false,
@@ -162,6 +160,20 @@ function initBunnyPlayerBackground() {
         });
 
         player._hls = hls;
+
+      } else if (isSafariNative) {
+        console.log("Using Safari/native HLS. HLS.js quality forcing will not run.");
+
+        video.src = src;
+
+        video.addEventListener("loadedmetadata", function () {
+          console.log("Native video metadata loaded", {
+            videoWidth: video.videoWidth,
+            videoHeight: video.videoHeight
+          });
+
+          readyIfIdle(player, pendingPlay);
+        }, { once: true });
 
       } else {
         console.warn("HLS.js unavailable. Falling back to direct video src:", src);
