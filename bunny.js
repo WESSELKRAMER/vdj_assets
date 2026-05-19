@@ -47,6 +47,7 @@ function initBunnyPlayerBackground() {
     if (autoplay) video.autoplay = false;
 
     var ua = navigator.userAgent.toLowerCase();
+
     var isSafari =
       ua.indexOf("safari") > -1 &&
       ua.indexOf("chrome") === -1 &&
@@ -60,22 +61,9 @@ function initBunnyPlayerBackground() {
     var canUseHlsJs =
       !!(window.Hls && Hls.isSupported()) && !isSafariNative;
 
-    console.log("Bunny player debug", {
-      src: src,
-      isSafari: isSafari,
-      isSafariNative: isSafariNative,
-      hasHls: !!window.Hls,
-      hlsSupported: !!(window.Hls && Hls.isSupported()),
-      canUseHlsJs: canUseHlsJs,
-      lazy: isLazyTrue,
-      autoplay: autoplay
-    });
-
     function attachMediaOnce() {
       if (isAttached) return;
       isAttached = true;
-
-      console.log("Bunny attach media:", src);
 
       if (player._hls) {
         try { player._hls.destroy(); } catch (_) {}
@@ -86,8 +74,8 @@ function initBunnyPlayerBackground() {
         var hls = new Hls({
           startLevel: -1,
           capLevelToPlayerSize: false,
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
+          maxBufferLength: 45,
+          maxMaxBufferLength: 90,
           abrEwmaFastVoD: 2,
           abrEwmaSlowVoD: 5,
           abrEwmaFastLive: 2,
@@ -98,56 +86,40 @@ function initBunnyPlayerBackground() {
           maxLoadingDelay: 4
         });
 
+        function forceHighestLevel() {
+          if (!hls.levels || !hls.levels.length) return;
+
+          var highestLevel = hls.levels.length - 1;
+
+          hls.currentLevel = highestLevel;
+          hls.loadLevel = highestLevel;
+          hls.nextLevel = highestLevel;
+        }
+
         hls.attachMedia(video);
 
         hls.on(Hls.Events.MEDIA_ATTACHED, function () {
-          console.log("HLS.js attached, loading:", src);
           hls.loadSource(src);
         });
 
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
-          console.log("HLS manifest parsed");
-
-          if (hls.levels && hls.levels.length) {
-            console.table(
-              hls.levels.map(function (level, index) {
-                return {
-                  index: index,
-                  width: level.width,
-                  height: level.height,
-                  bitrate: level.bitrate
-                };
-              })
-            );
-
-            var highestLevel = hls.levels.length - 1;
-
-            hls.loadLevel = highestLevel;
-            hls.nextLevel = highestLevel;
-            hls.currentLevel = highestLevel;
-
-            console.log("Forced HLS level:", highestLevel);
-          } else {
-            console.warn("No HLS levels found.");
-          }
-
+          forceHighestLevel();
           readyIfIdle(player, pendingPlay);
         });
 
-        hls.on(Hls.Events.LEVEL_SWITCHED, function (_, data) {
-          var level = hls.levels && hls.levels[data.level];
+        hls.on(Hls.Events.LEVEL_SWITCHING, function () {
+          forceHighestLevel();
+        });
 
-          console.log("HLS level switched", {
-            level: data.level,
-            width: level && level.width,
-            height: level && level.height,
-            bitrate: level && level.bitrate
-          });
+        hls.on(Hls.Events.LEVEL_SWITCHED, function () {
+          forceHighestLevel();
+        });
+
+        hls.on(Hls.Events.FRAG_CHANGED, function () {
+          forceHighestLevel();
         });
 
         hls.on(Hls.Events.ERROR, function (_, data) {
-          console.warn("HLS error", data);
-
           if (!data || !data.fatal) return;
 
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
@@ -162,30 +134,16 @@ function initBunnyPlayerBackground() {
         player._hls = hls;
 
       } else if (isSafariNative) {
-        console.log("Using Safari/native HLS. HLS.js quality forcing will not run.");
-
         video.src = src;
 
         video.addEventListener("loadedmetadata", function () {
-          console.log("Native video metadata loaded", {
-            videoWidth: video.videoWidth,
-            videoHeight: video.videoHeight
-          });
-
           readyIfIdle(player, pendingPlay);
         }, { once: true });
 
       } else {
-        console.warn("HLS.js unavailable. Falling back to direct video src:", src);
-
         video.src = src;
 
         video.addEventListener("loadedmetadata", function () {
-          console.log("Fallback video metadata loaded", {
-            videoWidth: video.videoWidth,
-            videoHeight: video.videoHeight
-          });
-
           readyIfIdle(player, pendingPlay);
         }, { once: true });
       }
@@ -250,14 +208,6 @@ function initBunnyPlayerBackground() {
       readyIfIdle(player, pendingPlay);
     });
 
-    video.addEventListener("loadedmetadata", function () {
-      console.log("Video element metadata", {
-        src: src,
-        videoWidth: video.videoWidth,
-        videoHeight: video.videoHeight
-      });
-    });
-
     video.addEventListener("ended", function () {
       pendingPlay = false;
       setStatus("paused");
@@ -314,9 +264,7 @@ function initBunnyPlayerBackground() {
     var p = video.play();
 
     if (p && typeof p.then === "function") {
-      p.catch(function (err) {
-        console.warn("Video play blocked or failed", err);
-      });
+      p.catch(function () {});
     }
   }
 }
