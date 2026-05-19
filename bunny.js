@@ -6,14 +6,8 @@ function initBunnyPlayerBackground() {
     var video = player.querySelector("video");
     if (!video) return;
 
-    try {
-      video.pause();
-    } catch (_) {}
-
-    try {
-      video.removeAttribute("src");
-      video.load();
-    } catch (_) {}
+    try { video.pause(); } catch (_) {}
+    try { video.removeAttribute("src"); video.load(); } catch (_) {}
 
     function setStatus(s) {
       if (player.getAttribute("data-player-status") !== s) {
@@ -37,26 +31,20 @@ function initBunnyPlayerBackground() {
     var isAttached = false;
     var lastPauseBy = "";
 
-    if (autoplay) {
-      video.muted = true;
-      video.loop = true;
-    } else {
-      video.muted = initialMuted;
-    }
+    video.muted = autoplay ? true : initialMuted;
+    video.loop = autoplay;
+    video.preload = isLazyTrue ? "none" : "auto";
 
     video.setAttribute("muted", "");
     video.setAttribute("playsinline", "");
     video.setAttribute("webkit-playsinline", "");
     video.playsInline = true;
-    video.preload = isLazyTrue ? "none" : "auto";
 
     if (typeof video.disableRemotePlayback !== "undefined") {
       video.disableRemotePlayback = true;
     }
 
-    if (autoplay) {
-      video.autoplay = false;
-    }
+    if (autoplay) video.autoplay = false;
 
     var isSafariNative = !!video.canPlayType("application/vnd.apple.mpegurl");
     var canUseHlsJs = !!(window.Hls && Hls.isSupported()) && !isSafariNative;
@@ -66,39 +54,29 @@ function initBunnyPlayerBackground() {
       isAttached = true;
 
       if (player._hls) {
-        try {
-          player._hls.destroy();
-        } catch (_) {}
+        try { player._hls.destroy(); } catch (_) {}
         player._hls = null;
       }
 
       if (isSafariNative) {
-        video.preload = isLazyTrue ? "none" : "auto";
         video.src = src;
 
-        video.addEventListener(
-          "loadedmetadata",
-          function () {
-            readyIfIdle(player, pendingPlay);
-          },
-          { once: true }
-        );
+        video.addEventListener("loadedmetadata", function () {
+          readyIfIdle(player, pendingPlay);
+        }, { once: true });
+
       } else if (canUseHlsJs) {
         var hls = new Hls({
-          maxBufferLength: 30,
-          maxMaxBufferLength: 60,
-
           startLevel: -1,
           capLevelToPlayerSize: false,
-
+          maxBufferLength: 30,
+          maxMaxBufferLength: 60,
           abrEwmaFastVoD: 2,
           abrEwmaSlowVoD: 5,
           abrEwmaFastLive: 2,
           abrEwmaSlowLive: 5,
-
           abrBandWidthFactor: 0.95,
           abrBandWidthUpFactor: 0.9,
-
           maxStarvationDelay: 4,
           maxLoadingDelay: 4
         });
@@ -111,49 +89,47 @@ function initBunnyPlayerBackground() {
 
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
           if (hls.levels && hls.levels.length) {
-            hls.currentLevel = hls.levels.length - 1;
+            console.table(
+              hls.levels.map(function (level, index) {
+                return {
+                  index: index,
+                  width: level.width,
+                  height: level.height,
+                  bitrate: level.bitrate
+                };
+              })
+            );
+
+            var highestLevel = hls.levels.length - 1;
+
+            hls.loadLevel = highestLevel;
+            hls.nextLevel = highestLevel;
+            hls.currentLevel = highestLevel;
           }
 
           readyIfIdle(player, pendingPlay);
         });
 
-        hls.on(Hls.Events.LEVEL_SWITCHED, function () {
-          if (hls.autoLevelEnabled === false) return;
-        });
-
         hls.on(Hls.Events.ERROR, function (_, data) {
           if (!data || !data.fatal) return;
 
-          switch (data.type) {
-            case Hls.ErrorTypes.NETWORK_ERROR:
-              try {
-                hls.startLoad();
-              } catch (_) {}
-              break;
-
-            case Hls.ErrorTypes.MEDIA_ERROR:
-              try {
-                hls.recoverMediaError();
-              } catch (_) {}
-              break;
-
-            default:
-              try {
-                hls.destroy();
-              } catch (_) {}
-              break;
+          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
+            try { hls.startLoad(); } catch (_) {}
+          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
+            try { hls.recoverMediaError(); } catch (_) {}
+          } else {
+            try { hls.destroy(); } catch (_) {}
           }
         });
 
         player._hls = hls;
+
       } else {
         video.src = src;
       }
     }
 
-    if (isLazyTrue) {
-      video.preload = "none";
-    } else {
+    if (!isLazyTrue) {
       attachMediaOnce();
     }
 
@@ -220,39 +196,34 @@ function initBunnyPlayerBackground() {
 
     if (autoplay) {
       if (player._io) {
-        try {
-          player._io.disconnect();
-        } catch (_) {}
+        try { player._io.disconnect(); } catch (_) {}
       }
 
-      var io = new IntersectionObserver(
-        function (entries) {
-          entries.forEach(function (entry) {
-            var inView = entry.isIntersecting && entry.intersectionRatio > 0;
+      var io = new IntersectionObserver(function (entries) {
+        entries.forEach(function (entry) {
+          var inView = entry.isIntersecting && entry.intersectionRatio > 0;
 
-            if (inView) {
-              if (isLazyTrue && !isAttached) attachMediaOnce();
+          if (inView) {
+            if (isLazyTrue && !isAttached) attachMediaOnce();
 
-              if (lastPauseBy === "io" || (video.paused && lastPauseBy !== "manual")) {
-                setStatus("loading");
+            if (lastPauseBy === "io" || (video.paused && lastPauseBy !== "manual")) {
+              setStatus("loading");
 
-                if (video.paused) {
-                  pendingPlay = true;
-                  safePlay(video);
-                }
-
-                lastPauseBy = "";
+              if (video.paused) {
+                pendingPlay = true;
+                safePlay(video);
               }
-            } else {
-              if (!video.paused && !video.ended) {
-                lastPauseBy = "io";
-                video.pause();
-              }
+
+              lastPauseBy = "";
             }
-          });
-        },
-        { threshold: 0.1 }
-      );
+          } else {
+            if (!video.paused && !video.ended) {
+              lastPauseBy = "io";
+              video.pause();
+            }
+          }
+        });
+      }, { threshold: 0.1 });
 
       io.observe(player);
       player._io = io;
