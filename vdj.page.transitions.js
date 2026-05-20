@@ -86,8 +86,6 @@ function initAfterEnterFunctions(next) {
 
   // ── Embed: initLayeredIllustration ────────────────────────────────────────
   // Re-defined by rerunEmbedScripts above, called manually here.
-  // ⚠️  Add this line at the top of initLayeredIllustration in your embed:
-  //     if (document.querySelector(".sequence_color_layers img")) return;
   if (typeof initLayeredIllustration === "function" && has(".sequence_section")) {
     initLayeredIllustration();
   }
@@ -114,7 +112,6 @@ function rerunEmbedScripts(container) {
 // Remove elements that were appended to <body> during init and won't be
 // removed automatically when Barba swaps the container.
 function cleanupBodyAppended() {
-  // initPersonalCutoutToGrid modal portal
   document.querySelector(".pcg_modal_overlay")?.remove();
 }
 
@@ -128,7 +125,7 @@ function initScribble() {
   ];
 
   nextPage.querySelectorAll("[data-scribble]").forEach((el, index) => {
-    if (el.querySelector(".scribble_wrap")) return; // already initialized
+    if (el.querySelector(".scribble_wrap")) return;
 
     const wrapper = document.createElement("span");
     wrapper.className = "scribble_wrap";
@@ -183,7 +180,17 @@ function runPageOnceAnimation(next) {
 
 function runPageLeaveAnimation(current, next) {
   const tl = gsap.timeline({
-    onComplete: () => { current.remove(); }
+    onComplete: () => {
+      // Destroy only after the old page is fully gone
+      if (typeof VDJ !== "undefined") VDJ.destroy();
+
+      if (hasScrollTrigger) {
+        ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+      }
+
+      cleanupBodyAppended();
+      current.remove();
+    }
   });
 
   if (reducedMotion) {
@@ -205,12 +212,13 @@ function runPageEnterAnimation(next) {
     return new Promise(resolve => tl.call(resolve, null, "pageReady"));
   }
 
-  tl.add("startEnter", 0.6);
+  tl.add("startEnter", 0);
 
   tl.fromTo(next, {
     autoAlpha: 0,
   }, {
     autoAlpha: 1,
+    duration: 0.5,
   }, "startEnter");
 
   tl.add("pageReady");
@@ -244,16 +252,8 @@ barba.hooks.beforeEnter(data => {
 });
 
 barba.hooks.afterLeave(() => {
-  // Destroy VDJ: kills ScrollTriggers, Lenis, event listeners, tweens
-  if (typeof VDJ !== "undefined") VDJ.destroy();
-
-  // Kill any ScrollTriggers that survived VDJ.destroy()
-  if (hasScrollTrigger) {
-    ScrollTrigger.getAll().forEach(trigger => trigger.kill());
-  }
-
-  // Remove body-level elements created by the previous page's init
-  cleanupBodyAppended();
+  // Cleanup moved to runPageLeaveAnimation onComplete
+  // so it fires after the old page is fully faded out
 });
 
 barba.hooks.enter(data => {
@@ -278,7 +278,7 @@ barba.hooks.afterEnter(data => {
 });
 
 barba.init({
-  debug: true, // ← Set to false in production
+  debug: false,
   timeout: 7000,
   preventRunning: true,
   transitions: [
