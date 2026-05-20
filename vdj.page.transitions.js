@@ -253,29 +253,30 @@ barba.hooks.enter(data => {
 });
 
 barba.hooks.afterEnter(data => {
-  // Both animations are fully complete — now safe to destroy and re-init
-  if (typeof VDJ !== "undefined") {
-    VDJ.destroy();
-    VDJ.init();
-  }
-
-  if (hasScrollTrigger) {
-    ScrollTrigger.getAll().forEach(trigger => trigger.kill());
-  }
+  // Destroy old VDJ instance immediately
+  if (typeof VDJ !== "undefined") VDJ.destroy();
 
   cleanupBodyAppended();
 
-  // Re-init all page-specific functions
-  initAfterEnterFunctions(data.next.container);
+  // Double rAF gives the browser two full frames to finalize layout
+  // before ScrollTrigger measures anything, fixing timing issues
+  // with text effects, hero toggle, and other scroll-based animations.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (typeof VDJ !== "undefined") VDJ.init();
 
-  if (window.lenis) {
-    window.lenis.resize();
-    window.lenis.start();
-  }
+      initAfterEnterFunctions(data.next.container);
 
-  if (hasScrollTrigger) {
-    ScrollTrigger.refresh();
-  }
+      if (window.lenis) {
+        window.lenis.resize();
+        window.lenis.start();
+      }
+
+      if (hasScrollTrigger) {
+        ScrollTrigger.refresh();
+      }
+    });
+  });
 });
 
 barba.init({
