@@ -178,17 +178,9 @@ function runPageOnceAnimation(next) {
   return tl;
 }
 
-function runPageLeaveAnimation(current, next) {
+function runPageLeaveAnimation(current) {
   const tl = gsap.timeline({
     onComplete: () => {
-      // Destroy only after the old page is fully gone
-      if (typeof VDJ !== "undefined") VDJ.destroy();
-
-      if (hasScrollTrigger) {
-        ScrollTrigger.getAll().forEach(trigger => trigger.kill());
-      }
-
-      cleanupBodyAppended();
       current.remove();
     }
   });
@@ -252,8 +244,8 @@ barba.hooks.beforeEnter(data => {
 });
 
 barba.hooks.afterLeave(() => {
-  // Cleanup moved to runPageLeaveAnimation onComplete
-  // so it fires after the old page is fully faded out
+  // Intentionally empty — destroy/init happens in afterEnter
+  // so nothing is killed while animations are still running
 });
 
 barba.hooks.enter(data => {
@@ -261,8 +253,17 @@ barba.hooks.enter(data => {
 });
 
 barba.hooks.afterEnter(data => {
-  // Re-init VDJ for the new page (also restarts Lenis)
-  if (typeof VDJ !== "undefined") VDJ.init();
+  // Both animations are fully complete — now safe to destroy and re-init
+  if (typeof VDJ !== "undefined") {
+    VDJ.destroy();
+    VDJ.init();
+  }
+
+  if (hasScrollTrigger) {
+    ScrollTrigger.getAll().forEach(trigger => trigger.kill());
+  }
+
+  cleanupBodyAppended();
 
   // Re-init all page-specific functions
   initAfterEnterFunctions(data.next.container);
@@ -294,7 +295,7 @@ barba.init({
 
       // Current page leaves
       async leave(data) {
-        return runPageLeaveAnimation(data.current.container, data.next.container);
+        return runPageLeaveAnimation(data.current.container);
       },
 
       // New page enters
