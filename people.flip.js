@@ -50,7 +50,7 @@ function initPersonalCutoutToGrid() {
     .pcg_modal_bg {
       position: absolute;
       inset: 0;
-      background: rgba(255, 255, 255, 0.75);
+      background: rgba(0, 0, 0, 0.45);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
     }
@@ -71,6 +71,7 @@ function initPersonalCutoutToGrid() {
 
   let isOpen = false;
   let modalTween = null;
+  let scrollActive = false;
 
   function openModal(detailsWrapper) {
     if (isOpen) closeModal(true);
@@ -142,7 +143,7 @@ function initPersonalCutoutToGrid() {
 
     item.addEventListener("click", () => {
       if (!isMobile()) return;
-      if (!item.classList.contains("is-hover-active")) return;
+      if (!scrollActive) return;
       openModal(details);
     });
   });
@@ -166,10 +167,10 @@ function initPersonalCutoutToGrid() {
       scrub: true,
       invalidateOnRefresh: true,
       onUpdate: (self) => {
-        const active = self.progress > 0.92;
+        scrollActive = self.progress > 0.92;
         items.forEach((item) => {
-          // Only apply is-hover-active on desktop
-          item.classList.toggle("is-hover-active", active && !isMobile());
+          // hover class desktop only
+          item.classList.toggle("is-hover-active", scrollActive && !isMobile());
         });
       }
     }
