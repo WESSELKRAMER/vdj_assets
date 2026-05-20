@@ -46,7 +46,7 @@ function initPersonalCutoutToGrid() {
     .pcg_modal_bg {
       position: absolute;
       inset: 0;
-      background: rgba(0, 0, 0, 0.45);
+      background: rgba(255, 255, 255, 0.15);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
     }
