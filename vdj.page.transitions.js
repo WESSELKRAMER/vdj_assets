@@ -181,6 +181,10 @@ function runPageOnceAnimation(next) {
 function runPageLeaveAnimation(current) {
   const tl = gsap.timeline({
     onComplete: () => {
+      // Old page is fully faded out and invisible —
+      // safe to destroy now without any visible snapping
+      if (typeof VDJ !== "undefined") VDJ.destroy();
+      cleanupBodyAppended();
       current.remove();
     }
   });
@@ -244,8 +248,8 @@ barba.hooks.beforeEnter(data => {
 });
 
 barba.hooks.afterLeave(() => {
-  // Intentionally empty — destroy/init happens in afterEnter
-  // so nothing is killed while animations are still running
+  // Intentionally empty — destroy happens in runPageLeaveAnimation
+  // onComplete, init happens in afterEnter
 });
 
 barba.hooks.enter(data => {
@@ -253,11 +257,6 @@ barba.hooks.enter(data => {
 });
 
 barba.hooks.afterEnter(data => {
-  // Destroy old VDJ instance immediately
-  if (typeof VDJ !== "undefined") VDJ.destroy();
-
-  cleanupBodyAppended();
-
   // Double rAF gives the browser two full frames to finalize layout
   // before ScrollTrigger measures anything, fixing timing issues
   // with text effects, hero toggle, and other scroll-based animations.
