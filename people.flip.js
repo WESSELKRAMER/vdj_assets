@@ -13,6 +13,10 @@ function initPersonalCutoutToGrid() {
     if (name) targetMap.set(name, target);
   });
 
+  function isMobile() {
+    return window.matchMedia("(max-width: 767px)").matches;
+  }
+
   // ── Modal portal ─────────────────────────────────────────────────────────────
 
   const modalOverlay = document.createElement("div");
@@ -46,7 +50,7 @@ function initPersonalCutoutToGrid() {
     .pcg_modal_bg {
       position: absolute;
       inset: 0;
-      background: rgba(255, 255, 255, 0.15);
+      background: rgba(255, 255, 255, 0.75);
       backdrop-filter: blur(4px);
       -webkit-backdrop-filter: blur(4px);
     }
@@ -57,8 +61,10 @@ function initPersonalCutoutToGrid() {
       align-items: center;
       justify-content: center;
     }
-    .personal_cutout_wrapper.is-hover-active {
-      cursor: pointer;
+    @media (max-width: 767px) {
+      .personal_cutout_wrapper.is-hover-active {
+        cursor: pointer;
+      }
     }
   `;
   document.head.appendChild(modalStyles);
@@ -72,7 +78,6 @@ function initPersonalCutoutToGrid() {
 
     const clone = detailsWrapper.cloneNode(true);
 
-    // Reset any hiding styles the original may have had
     gsap.set(clone, {
       opacity: 1,
       visibility: "visible",
@@ -127,7 +132,7 @@ function initPersonalCutoutToGrid() {
     if (e.key === "Escape") closeModal();
   });
 
-  // ── Cutout click handlers ─────────────────────────────────────────────────────
+  // ── Cutout click handlers (mobile only) ──────────────────────────────────────
 
   items.forEach((item) => {
     item.classList.remove("is-hover-active");
@@ -136,6 +141,7 @@ function initPersonalCutoutToGrid() {
     if (!details) return;
 
     item.addEventListener("click", () => {
+      if (!isMobile()) return;
       if (!item.classList.contains("is-hover-active")) return;
       openModal(details);
     });
@@ -162,7 +168,8 @@ function initPersonalCutoutToGrid() {
       onUpdate: (self) => {
         const active = self.progress > 0.92;
         items.forEach((item) => {
-          item.classList.toggle("is-hover-active", active);
+          // Only apply is-hover-active on desktop
+          item.classList.toggle("is-hover-active", active && !isMobile());
         });
       }
     }
