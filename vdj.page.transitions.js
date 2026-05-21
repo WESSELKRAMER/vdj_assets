@@ -9,10 +9,10 @@ const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
 
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
 let reducedMotion = rmMQ.matches;
-rmMQ.addEventListener?.("change", (e) => (reducedMotion = e.matches));
-rmMQ.addListener?.((e) => (reducedMotion = e.matches));
+rmMQ.addEventListener?.("change", e => (reducedMotion = e.matches));
+rmMQ.addListener?.(e => (reducedMotion = e.matches));
 
-const has = (selector) => !!nextPage.querySelector(selector);
+const has = (s) => !!nextPage.querySelector(s);
 
 let staggerDefault = 0.05;
 let durationDefault = 0.6;
@@ -20,14 +20,7 @@ let durationDefault = 0.6;
 CustomEase.create("osmo", "0.625, 0.05, 0, 1");
 gsap.defaults({ ease: "osmo", duration: durationDefault });
 
-const waitFrame = () => new Promise((resolve) => requestAnimationFrame(resolve));
-const waitDoubleFrame = () =>
-  new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-function refreshScrollTriggerSafely() {
-  if (!hasScrollTrigger) return;
-  waitDoubleFrame().then(() => ScrollTrigger.refresh());
-}
 
 function initOnceFunctions() {
   if (onceFunctionsInitialized) return;
@@ -37,7 +30,7 @@ function initOnceFunctions() {
 
 function initBeforeEnterFunctions(next) {
   nextPage = next || document;
-  rerunEmbedScripts(nextPage);
+  rerunEmbedScripts(next);
 }
 
 function initAfterEnterFunctions(next) {
@@ -76,7 +69,7 @@ function initAfterEnterFunctions(next) {
   }
 
   if (typeof createLightbox === "function" && has("[data-gallery]")) {
-    nextPage.querySelectorAll("[data-gallery]").forEach((wrapper) => createLightbox(wrapper));
+    nextPage.querySelectorAll("[data-gallery]").forEach(wrapper => createLightbox(wrapper));
   }
 
   if (typeof VDJ_ParallaxImages !== "undefined" && has("[data-parallax]")) {
@@ -96,17 +89,18 @@ function initAfterEnterFunctions(next) {
   }
 
   if (window.lenis) window.lenis.resize();
-  refreshScrollTriggerSafely();
+
+  if (hasScrollTrigger) {
+    ScrollTrigger.refresh();
+  }
 }
 
 function rerunEmbedScripts(container) {
   if (!container) return;
-
-  container.querySelectorAll("script[data-rerun]").forEach((old) => {
-    const script = document.createElement("script");
-    Array.from(old.attributes).forEach((attr) => script.setAttribute(attr.name, attr.value));
-    script.textContent = old.textContent;
-    old.replaceWith(script);
+  container.querySelectorAll("script").forEach((old) => {
+    const s = document.createElement("script");
+    s.textContent = old.textContent;
+    old.replaceWith(s);
   });
 }
 
@@ -120,7 +114,6 @@ function initSwiperInstances() {
     const nextEl = section.querySelector(".future-swiper-next");
     const prevEl = section.querySelector(".future-swiper-prev");
     if (!swiperEl || !nextEl || !prevEl) return;
-
     new Swiper(swiperEl, {
       slidesPerView: "auto",
       slidesPerGroup: 1,
@@ -139,7 +132,6 @@ function initSwiperInstances() {
 
 function initHeroFolderCards() {
   if (typeof gsap === "undefined") return;
-
   nextPage.querySelectorAll(".hero_list_item").forEach((item) => {
     const card = item.querySelector(".hero_folder_card");
     const link = item.querySelector(".hero_list_item_link");
@@ -150,9 +142,7 @@ function initHeroFolderCards() {
     const layers = [front, ...thumbs].filter(Boolean);
     if (!front || !thumbs.length) return;
 
-    thumbs.forEach((thumb, i) => {
-      thumb.style.zIndex = 90 - i * 5;
-    });
+    thumbs.forEach((thumb, i) => { thumb.style.zIndex = 90 - i * 5; });
     front.style.zIndex = 100;
 
     gsap.set(layers, {
@@ -213,22 +203,19 @@ function initScribble() {
     path.style.strokeDasharray = length;
     path.style.strokeDashoffset = length;
 
-    if (typeof gsap === "undefined") return;
-
-    const tweenConfig = {
-      strokeDashoffset: 0,
-      duration: 1,
-      ease: "power2.out",
-      delay: index * 0.15
-    };
-
-    if (!reducedMotion && hasScrollTrigger) {
-      tweenConfig.scrollTrigger = { trigger: el, start: "top 80%" };
+    if (typeof gsap !== "undefined") {
+      gsap.to(path, {
+        strokeDashoffset: 0,
+        duration: 1,
+        ease: "power2.out",
+        delay: index * 0.15,
+        scrollTrigger: { trigger: el, start: "top 80%" }
+      });
     }
-
-    gsap.to(path, tweenConfig);
   });
 }
+
+
 
 function runPageOnceAnimation(next) {
   const tl = gsap.timeline();
@@ -250,6 +237,7 @@ function runPageLeaveAnimation(current) {
   }
 
   tl.to(current, { autoAlpha: 0, duration: 0.7 });
+
   return tl;
 }
 
@@ -261,32 +249,39 @@ async function runPageEnterAnimation(next) {
     return;
   }
 
-  await waitFrame();
+  await new Promise(resolve => requestAnimationFrame(resolve));
 
   await Promise.race([
-    document.fonts?.ready || Promise.resolve(),
-    new Promise((resolve) => setTimeout(resolve, 500))
+    document.fonts.ready,
+    new Promise(resolve => setTimeout(resolve, 500))
   ]);
 
-  window.scrollTo(0, 0);
+  if (typeof VDJ !== "undefined") VDJ.init();
+
+  if (window.lenis) {
+    window.lenis.resize();
+    window.lenis.start();
+  }
 
   const fadeTl = gsap.timeline();
-  fadeTl.fromTo(
-    next,
+
+  fadeTl.fromTo(next,
     { autoAlpha: 0 },
-    { autoAlpha: 1, duration: 0.9, ease: "power2.out" }
+    { autoAlpha: 0.15, duration: 0.7, ease: "power2.in" }
   );
 
-  await new Promise((resolve) => fadeTl.call(resolve));
+  initAfterEnterFunctions(next);
+
+  fadeTl.to(next, { autoAlpha: 1, duration: 1.1, ease: "power2.out" });
+
+  await new Promise(resolve => fadeTl.call(resolve));
 
   resetPage(next);
-  await waitDoubleFrame();
-
-  if (typeof VDJ !== "undefined") VDJ.init();
-  initAfterEnterFunctions(next);
 }
 
-barba.hooks.before((data) => {
+
+
+barba.hooks.before(data => {
   const navStatusEl = document.querySelector("[data-navigation-status]");
   if (navStatusEl?.getAttribute("data-navigation-status") === "active") {
     document.querySelector('[data-navigation-toggle="close"]')?.click();
@@ -301,7 +296,7 @@ barba.hooks.before((data) => {
   });
 });
 
-barba.hooks.beforeEnter((data) => {
+barba.hooks.beforeEnter(data => {
   if (window.lenis) window.lenis.stop();
   initBeforeEnterFunctions(data.next.container);
   applyThemeFrom(data.next.container);
@@ -309,7 +304,7 @@ barba.hooks.beforeEnter((data) => {
 
 barba.hooks.afterLeave(() => {});
 
-barba.hooks.enter((data) => {
+barba.hooks.enter(data => {
   initBarbaNavUpdate(data);
 });
 
@@ -342,8 +337,10 @@ barba.init({
         return runPageEnterAnimation(data.next.container);
       }
     }
-  ]
+  ],
 });
+
+
 
 const themeConfig = {
   light: { nav: "dark", transition: "light" },
@@ -356,21 +353,25 @@ function applyThemeFrom(container) {
 
   document.body.dataset.pageTheme = pageTheme;
 
-  const transitionEl = document.querySelector("[data-theme-transition]");
+  const transitionEl = document.querySelector('[data-theme-transition]');
   if (transitionEl) transitionEl.dataset.themeTransition = config.transition;
 
-  const nav = document.querySelector("[data-theme-nav]");
+  const nav = document.querySelector('[data-theme-nav]');
   if (nav) nav.dataset.themeNav = config.nav;
 }
 
 function resetPage(container) {
+  window.scrollTo(0, 0);
   gsap.set(container, { clearProps: "position,top,left,right" });
+
+  if (window.lenis) {
+    window.lenis.resize();
+    window.lenis.start();
+  }
 }
 
 function debounceOnWidthChange(fn, ms) {
-  let last = innerWidth;
-  let timer;
-
+  let last = innerWidth, timer;
   return function (...args) {
     clearTimeout(timer);
     timer = setTimeout(() => {
@@ -383,24 +384,23 @@ function debounceOnWidthChange(fn, ms) {
 }
 
 function initBarbaNavUpdate(data) {
-  const tpl = document.createElement("template");
+  var tpl = document.createElement('template');
   tpl.innerHTML = data.next.html.trim();
+  var nextNodes = tpl.content.querySelectorAll('[data-barba-update]');
+  var currentNodes = document.querySelectorAll('nav [data-barba-update]');
 
-  const nextNodes = tpl.content.querySelectorAll("[data-barba-update]");
-  const currentNodes = document.querySelectorAll("nav [data-barba-update]");
-
-  currentNodes.forEach((curr, index) => {
-    const next = nextNodes[index];
+  currentNodes.forEach(function (curr, index) {
+    var next = nextNodes[index];
     if (!next) return;
 
-    const newStatus = next.getAttribute("aria-current");
+    var newStatus = next.getAttribute('aria-current');
     if (newStatus !== null) {
-      curr.setAttribute("aria-current", newStatus);
+      curr.setAttribute('aria-current', newStatus);
     } else {
-      curr.removeAttribute("aria-current");
+      curr.removeAttribute('aria-current');
     }
 
-    const newClassList = next.getAttribute("class") || "";
-    curr.setAttribute("class", newClassList);
+    var newClassList = next.getAttribute('class') || '';
+    curr.setAttribute('class', newClassList);
   });
 }
