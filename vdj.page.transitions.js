@@ -250,9 +250,12 @@ async function runPageEnterAnimation(next) {
   }
 
   await new Promise(resolve => requestAnimationFrame(resolve));
-  await document.fonts.ready;
 
-  // Phase 1: VDJ only before fade starts
+  await Promise.race([
+    document.fonts.ready,
+    new Promise(resolve => setTimeout(resolve, 500))
+  ]);
+
   if (typeof VDJ !== "undefined") VDJ.init();
 
   if (window.lenis) {
@@ -260,7 +263,6 @@ async function runPageEnterAnimation(next) {
     window.lenis.start();
   }
 
-  // Start fade — bring page to near-invisible opacity first
   const fadeTl = gsap.timeline();
 
   fadeTl.fromTo(next,
@@ -268,10 +270,8 @@ async function runPageEnterAnimation(next) {
     { autoAlpha: 0.15, duration: 0.45, ease: "power2.in" }
   );
 
-  // Phase 2: run heavy inits while page is nearly invisible
   initAfterEnterFunctions(next);
 
-  // Complete the fade
   fadeTl.to(next, { autoAlpha: 1, duration: 1, ease: "power2.out" });
 
   await new Promise(resolve => fadeTl.call(resolve));
