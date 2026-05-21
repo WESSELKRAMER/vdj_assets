@@ -89,6 +89,10 @@ function initAfterEnterFunctions(next) {
   }
 
   if (window.lenis) window.lenis.resize();
+
+  if (hasScrollTrigger) {
+    ScrollTrigger.refresh();
+  }
 }
 
 function rerunEmbedScripts(container) {
@@ -102,24 +106,6 @@ function rerunEmbedScripts(container) {
 
 function cleanupBodyAppended() {
   document.querySelector(".pcg_modal_overlay")?.remove();
-}
-
-function waitForPageReady() {
-  return new Promise(resolve => {
-    if (document.readyState === "complete") {
-      resolve();
-    } else {
-      window.addEventListener("load", resolve, { once: true });
-    }
-  });
-}
-
-function decodeImages(container) {
-  return Promise.all(
-    Array.from(container.querySelectorAll("img")).map(img =>
-      img.decode().catch(() => {})
-    )
-  );
 }
 
 function initSwiperInstances() {
@@ -263,12 +249,7 @@ async function runPageEnterAnimation(next) {
   }
 
   await new Promise(resolve => requestAnimationFrame(resolve));
-
-  await Promise.all([
-    waitForPageReady(),
-    document.fonts.ready,
-    decodeImages(next)
-  ]);
+  await document.fonts.ready;
 
   if (typeof VDJ !== "undefined") VDJ.init();
   initAfterEnterFunctions(next);
@@ -285,10 +266,6 @@ async function runPageEnterAnimation(next) {
     );
   });
 
-  if (hasScrollTrigger) {
-    ScrollTrigger.refresh();
-  }
-
   resetPage(next);
 }
 
@@ -300,8 +277,7 @@ barba.hooks.before(data => {
     top: 0,
     left: 0,
     right: 0,
-    autoAlpha: 0,
-    willChange: "opacity"
+    autoAlpha: 0
   });
 });
 
@@ -328,7 +304,6 @@ barba.init({
   debug: false,
   timeout: 7000,
   preventRunning: true,
-  prefetchIgnore: false,
   transitions: [
     {
       name: "default",
@@ -372,7 +347,7 @@ function applyThemeFrom(container) {
 
 function resetPage(container) {
   window.scrollTo(0, 0);
-  gsap.set(container, { clearProps: "position,top,left,right,willChange" });
+  gsap.set(container, { clearProps: "position,top,left,right" });
 
   if (window.lenis) {
     window.lenis.resize();
