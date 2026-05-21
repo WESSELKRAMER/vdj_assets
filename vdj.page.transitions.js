@@ -249,7 +249,14 @@ async function runPageEnterAnimation(next) {
   }
 
   await new Promise(resolve => requestAnimationFrame(resolve));
-  await document.fonts.ready;
+
+  await new Promise(resolve => {
+    if (document.readyState === "complete") {
+      resolve();
+    } else {
+      window.addEventListener("load", resolve, { once: true });
+    }
+  });
 
   if (typeof VDJ !== "undefined") VDJ.init();
   initAfterEnterFunctions(next);
@@ -266,7 +273,7 @@ async function runPageEnterAnimation(next) {
   await new Promise(resolve => {
     gsap.fromTo(next,
       { autoAlpha: 0 },
-      { autoAlpha: 1, duration: 0.8, ease: "power2.inOut", onComplete: resolve }
+      { autoAlpha: 1, duration: 1, ease: "power2.inOut", onComplete: resolve }
     );
   });
 
