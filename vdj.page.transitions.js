@@ -282,6 +282,11 @@ async function runPageEnterAnimation(next) {
 
 
 barba.hooks.before(data => {
+  const navStatusEl = document.querySelector("[data-navigation-status]");
+  if (navStatusEl?.getAttribute("data-navigation-status") === "active") {
+    document.querySelector('[data-navigation-toggle="close"]')?.click();
+  }
+
   gsap.set(data.next.container, {
     position: "fixed",
     top: 0,
