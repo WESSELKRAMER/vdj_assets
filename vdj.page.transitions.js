@@ -286,6 +286,8 @@ function runPageLeaveAnimation(current) {
 // Enter animation runs VDJ.init() and all page inits BEFORE fading in —
 // this prevents SplitText and other effects from flashing in their
 // "natural" state before being hidden by their initial animation values.
+// Waits for document.fonts.ready before init so SplitText measures
+// correctly — fixes stutter on first visit before fonts are cached.
 async function runPageEnterAnimation(next) {
   if (reducedMotion) {
     gsap.set(next, { autoAlpha: 1 });
@@ -293,8 +295,12 @@ async function runPageEnterAnimation(next) {
     return;
   }
 
-  // Single rAF for layout to settle after leave
   await new Promise(resolve => requestAnimationFrame(resolve));
+
+  // Wait for fonts to load before SplitText measures anything.
+  // On repeat visits this resolves instantly (fonts are cached).
+  // On first visit it waits just long enough to measure correctly.
+  await document.fonts.ready;
 
   // Init while page is still invisible — SplitText, ScrollTrigger, and all
   // effects set their initial states before anyone can see them
