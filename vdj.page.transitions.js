@@ -6,7 +6,6 @@ gsap.defaults({ ease: "osmo" });
 history.scrollRestoration = "manual";
 
 const TRANSITION_KEY = "vdj:transition";
-const HAS_LOADED_KEY = "vdj:hasLoaded";
 const CONTAINER_SELECTOR = "[data-transition-container]";
 
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -58,12 +57,13 @@ function closeHamburgerBeforeLeave(timeout = 700) {
 
 function playEnter(container) {
   const isTransitionEnter = sessionStorage.getItem(TRANSITION_KEY) === "1";
-  const isInitialLoad = sessionStorage.getItem(HAS_LOADED_KEY) !== "1";
+  const navEntry = performance.getEntriesByType("navigation")[0];
+  const isBrowserLoad =
+    !!navEntry && (navEntry.type === "navigate" || navEntry.type === "reload");
 
   sessionStorage.removeItem(TRANSITION_KEY);
-  sessionStorage.setItem(HAS_LOADED_KEY, "1");
 
-  if (reducedMotion || (!isTransitionEnter && !isInitialLoad)) {
+  if (reducedMotion || (!isTransitionEnter && !isBrowserLoad)) {
     gsap.set(container, { autoAlpha: 1, clearProps: "opacity,visibility" });
     return;
   }
@@ -71,7 +71,7 @@ function playEnter(container) {
   gsap.set(container, { autoAlpha: 0 });
   gsap.to(container, {
     autoAlpha: 1,
-    duration: isInitialLoad ? 1.2 : 1.1,
+    duration: isBrowserLoad ? 1.2 : 1.1,
     ease: "power2.out",
     onComplete: () => gsap.set(container, { clearProps: "opacity,visibility" })
   });
@@ -100,14 +100,21 @@ async function playLeaveAndGo(url, container) {
   });
 }
 
-// Boot
-const container = document.querySelector(CONTAINER_SELECTOR) || document.body;
-playEnter(container);
+function initTransitions() {
+  const container = document.querySelector(CONTAINER_SELECTOR) || document.body;
+  playEnter(container);
 
-document.addEventListener("click", (e) => {
-  const a = e.target.closest("a[href]");
-  if (!isInternalLink(a, e)) return;
+  document.addEventListener("click", (e) => {
+    const a = e.target.closest("a[href]");
+    if (!isInternalLink(a, e)) return;
 
-  e.preventDefault();
-  playLeaveAndGo(a.href, container);
-});
+    e.preventDefault();
+    playLeaveAndGo(a.href, container);
+  });
+}
+
+if (document.readyState === "loading") {
+  document.addEventListener("DOMContentLoaded", initTransitions);
+} else {
+  initTransitions();
+}
