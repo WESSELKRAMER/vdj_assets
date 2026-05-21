@@ -6,6 +6,7 @@ gsap.defaults({ ease: "osmo" });
 history.scrollRestoration = "manual";
 
 const TRANSITION_KEY = "vdj:transition";
+const HAS_LOADED_KEY = "vdj:hasLoaded";
 const CONTAINER_SELECTOR = "[data-transition-container]";
 
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -56,10 +57,13 @@ function closeHamburgerBeforeLeave(timeout = 700) {
 }
 
 function playEnter(container) {
-  const shouldPlay = sessionStorage.getItem(TRANSITION_KEY) === "1";
-  sessionStorage.removeItem(TRANSITION_KEY);
+  const isTransitionEnter = sessionStorage.getItem(TRANSITION_KEY) === "1";
+  const isInitialLoad = sessionStorage.getItem(HAS_LOADED_KEY) !== "1";
 
-  if (!shouldPlay || reducedMotion) {
+  sessionStorage.removeItem(TRANSITION_KEY);
+  sessionStorage.setItem(HAS_LOADED_KEY, "1");
+
+  if (reducedMotion || (!isTransitionEnter && !isInitialLoad)) {
     gsap.set(container, { autoAlpha: 1, clearProps: "opacity,visibility" });
     return;
   }
@@ -67,7 +71,7 @@ function playEnter(container) {
   gsap.set(container, { autoAlpha: 0 });
   gsap.to(container, {
     autoAlpha: 1,
-    duration: 1.1,
+    duration: isInitialLoad ? 1.2 : 1.1,
     ease: "power2.out",
     onComplete: () => gsap.set(container, { clearProps: "opacity,visibility" })
   });
