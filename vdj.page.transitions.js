@@ -236,7 +236,7 @@ function runPageLeaveAnimation(current) {
     return tl.set(current, { autoAlpha: 0 });
   }
 
-  tl.to(current, { autoAlpha: 0, duration: 0.5 });
+  tl.to(current, { autoAlpha: 0, duration: 0.7 });
 
   return tl;
 }
@@ -267,12 +267,12 @@ async function runPageEnterAnimation(next) {
 
   fadeTl.fromTo(next,
     { autoAlpha: 0 },
-    { autoAlpha: 0.15, duration: 0.45, ease: "power2.in" }
+    { autoAlpha: 0.15, duration: 0.7, ease: "power2.in" }
   );
 
   initAfterEnterFunctions(next);
 
-  fadeTl.to(next, { autoAlpha: 1, duration: 1, ease: "power2.out" });
+  fadeTl.to(next, { autoAlpha: 1, duration: 1.1, ease: "power2.out" });
 
   await new Promise(resolve => fadeTl.call(resolve));
 
