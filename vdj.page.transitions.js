@@ -1,9 +1,13 @@
 gsap.registerPlugin(CustomEase);
+
 CustomEase.create("osmo", "0.625, 0.05, 0, 1");
 gsap.defaults({ ease: "osmo" });
 
+history.scrollRestoration = "manual";
+
 const TRANSITION_KEY = "vdj:transition";
 const CONTAINER_SELECTOR = "[data-transition-container]";
+
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
 let reducedMotion = rmMQ.matches;
 rmMQ.addEventListener?.("change", (e) => (reducedMotion = e.matches));
@@ -22,9 +26,33 @@ function isInternalLink(a, e) {
 
   const url = new URL(a.href, location.href);
   if (url.origin !== location.origin) return false;
-  if (url.pathname === location.pathname && url.search === location.search) return false;
+
+  const samePage = url.pathname === location.pathname && url.search === location.search;
+  if (samePage) return false;
 
   return true;
+}
+
+function closeHamburgerBeforeLeave(timeout = 700) {
+  const statusEl = document.querySelector("[data-navigation-status]");
+  const closeBtn = document.querySelector('[data-navigation-toggle="close"]');
+
+  const isActive = () => statusEl?.getAttribute("data-navigation-status") === "active";
+  if (!isActive()) return Promise.resolve();
+
+  closeBtn?.click();
+
+  return new Promise((resolve) => {
+    const start = performance.now();
+
+    function check() {
+      if (!isActive()) return resolve();
+      if (performance.now() - start >= timeout) return resolve();
+      requestAnimationFrame(check);
+    }
+
+    check();
+  });
 }
 
 function playEnter(container) {
@@ -32,7 +60,7 @@ function playEnter(container) {
   sessionStorage.removeItem(TRANSITION_KEY);
 
   if (!shouldPlay || reducedMotion) {
-    gsap.set(container, { autoAlpha: 1, clearProps: "all" });
+    gsap.set(container, { autoAlpha: 1, clearProps: "opacity,visibility" });
     return;
   }
 
@@ -40,13 +68,16 @@ function playEnter(container) {
   gsap.to(container, {
     autoAlpha: 1,
     duration: 1.1,
-    ease: "power2.out"
+    ease: "power2.out",
+    onComplete: () => gsap.set(container, { clearProps: "opacity,visibility" })
   });
 }
 
-function playLeaveAndGo(url, container) {
+async function playLeaveAndGo(url, container) {
   if (isLeaving) return;
   isLeaving = true;
+
+  await closeHamburgerBeforeLeave();
 
   sessionStorage.setItem(TRANSITION_KEY, "1");
 
@@ -59,7 +90,9 @@ function playLeaveAndGo(url, container) {
     autoAlpha: 0,
     duration: 0.7,
     ease: "power2.in",
-    onComplete: () => (location.href = url)
+    onComplete: () => {
+      location.href = url;
+    }
   });
 }
 
