@@ -181,7 +181,8 @@ function runPageOnceAnimation(next) {
 function runPageLeaveAnimation(current) {
   const tl = gsap.timeline({
     onComplete: () => {
-      // Old page fully invisible — safe to destroy with no visible snapping
+      // Old page is fully faded out and invisible —
+      // safe to destroy now without any visible snapping
       if (typeof VDJ !== "undefined") VDJ.destroy();
       cleanupBodyAppended();
       current.remove();
@@ -207,12 +208,14 @@ function runPageEnterAnimation(next) {
     return new Promise(resolve => tl.call(resolve, null, "pageReady"));
   }
 
+  tl.add("startEnter", 0);
+
   tl.fromTo(next, {
     autoAlpha: 0,
   }, {
     autoAlpha: 1,
     duration: 0.5,
-  });
+  }, "startEnter");
 
   tl.add("pageReady");
   tl.call(resetPage, [next], "pageReady");
@@ -229,14 +232,12 @@ function runPageEnterAnimation(next) {
 // -----------------------------------------
 
 barba.hooks.beforeEnter(data => {
-  // Position new container underneath the old one while it fades out.
-  // autoAlpha: 0 keeps it invisible until the enter animation starts.
+  // Position incoming container on top during transition
   gsap.set(data.next.container, {
     position: "fixed",
     top: 0,
     left: 0,
     right: 0,
-    autoAlpha: 0,
   });
 
   // Stop smooth scroll during transition
@@ -247,7 +248,8 @@ barba.hooks.beforeEnter(data => {
 });
 
 barba.hooks.afterLeave(() => {
-  // Intentionally empty — destroy happens in runPageLeaveAnimation onComplete
+  // Intentionally empty — destroy happens in runPageLeaveAnimation
+  // onComplete, init happens in afterEnter
 });
 
 barba.hooks.enter(data => {
@@ -257,7 +259,7 @@ barba.hooks.enter(data => {
 barba.hooks.afterEnter(data => {
   // Double rAF gives the browser two full frames to finalize layout
   // before ScrollTrigger measures anything, fixing timing issues
-  // with SplitText, hero toggle, and other scroll-based animations.
+  // with text effects, hero toggle, and other scroll-based animations.
   requestAnimationFrame(() => {
     requestAnimationFrame(() => {
       if (typeof VDJ !== "undefined") VDJ.init();
@@ -283,7 +285,7 @@ barba.init({
   transitions: [
     {
       name: "default",
-      sync: false, // Sequential: leave fully completes before enter starts
+      sync: true,
 
       // First page load
       async once(data) {
