@@ -6,10 +6,10 @@ gsap.registerPlugin(CustomEase);
 
 history.scrollRestoration = "manual";
 
+// Lenis is managed entirely by VDJ (window.lenis) — no separate instance here
 let nextPage = document;
 let onceFunctionsInitialized = false;
 
-// Lenis is managed entirely by VDJ (window.lenis) — no separate instance here
 const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
 
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -34,9 +34,6 @@ gsap.defaults({ ease: "osmo", duration: durationDefault });
 function initOnceFunctions() {
   if (onceFunctionsInitialized) return;
   onceFunctionsInitialized = true;
-
-  // VDJ handles: Lenis, ScrollTrigger, canvas, text loops,
-  // scroll animations, split text, navigation, footer parallax, etc.
   if (typeof VDJ !== "undefined") VDJ.init();
 }
 
@@ -44,48 +41,80 @@ function initBeforeEnterFunctions(next) {
   nextPage = next || document;
 
   // Re-inject inline embed scripts so their functions get re-defined.
-  // They won't auto-run (DOMContentLoaded already fired) — we call them
-  // manually in initAfterEnterFunctions below.
+  // They won't auto-run (DOMContentLoaded already fired) — called manually below.
   rerunEmbedScripts(next);
 }
 
 function initAfterEnterFunctions(next) {
   nextPage = next || document;
 
-  // ── bunny.js ──────────────────────────────────────────────────────────────
+  // ── Functions from site.bundle.min.js that run outside the VDJ IIFE ────────
+  // These only fire on DOMContentLoaded and never re-run on Barba transitions,
+  // so we need to call them manually here.
+
+  // [data-animate] scroll animations
+  if (typeof initScrollAnimations === "function") {
+    initScrollAnimations();
+  }
+
+  // Draggable marquee (has built-in initialized guard)
+  if (typeof initDraggableMarquee === "function" && has("[data-draggable-marquee-init]")) {
+    initDraggableMarquee();
+  }
+
+  // Swiper (anonymous DOMContentLoaded in bundle — replicated here)
+  if (typeof Swiper !== "undefined" && has("[data-swiper-id]")) {
+    initSwiperInstances();
+  }
+
+  // Hover char stagger (has built-in initialized guard)
+  if (typeof initHoverCharStagger === "function" && has("[data-hover-chars]")) {
+    initHoverCharStagger();
+  }
+
+  // Hero folder card flip animations (anonymous DOMContentLoaded in bundle — replicated)
+  if (has(".hero_list_item")) {
+    initHeroFolderCards();
+  }
+
+  // Dynamic current year
+  if (typeof initDynamicCurrentYear === "function") {
+    initDynamicCurrentYear();
+  }
+
+  // ── GitHub scripts ────────────────────────────────────────────────────────
+
+  // bunny.js
   if (typeof initBunnyPlayerBackground === "function" && has("[data-bunny-background-init]")) {
     initBunnyPlayerBackground();
   }
 
-  // ── highlight.text.js ─────────────────────────────────────────────────────
+  // highlight.text.js
   if (typeof initHighlightText === "function" && has("[data-highlight-text]")) {
     initHighlightText();
   }
 
-  // ── image.gallery.js ──────────────────────────────────────────────────────
-  // No named init function — replicate the DOMContentLoaded call directly.
+  // image.gallery.js — no named init, replicate DOMContentLoaded call
   if (typeof createLightbox === "function" && has("[data-gallery]")) {
     nextPage.querySelectorAll("[data-gallery]").forEach(wrapper => createLightbox(wrapper));
   }
 
-  // ── parallax.scroll.content.js ────────────────────────────────────────────
+  // parallax.scroll.content.js
   if (typeof VDJ_ParallaxImages !== "undefined" && has("[data-parallax]")) {
     VDJ_ParallaxImages.init(nextPage);
   }
 
-  // ── people.flip.js ────────────────────────────────────────────────────────
+  // people.flip.js
   if (typeof initPersonalCutoutToGrid === "function" && has(".personal_cutout_wrapper")) {
     initPersonalCutoutToGrid();
   }
 
-  // ── scribble.text.js ──────────────────────────────────────────────────────
-  // No exposed function — replicated as initScribble() below.
+  // scribble.text.js — no exposed function, replicated as initScribble()
   if (has("[data-scribble]")) {
     initScribble();
   }
 
-  // ── Embed: initLayeredIllustration ────────────────────────────────────────
-  // Re-defined by rerunEmbedScripts above, called manually here.
+  // Embed: initLayeredIllustration (re-defined by rerunEmbedScripts)
   if (typeof initLayeredIllustration === "function" && has(".sequence_section")) {
     initLayeredIllustration();
   }
@@ -98,8 +127,7 @@ function initAfterEnterFunctions(next) {
   }
 }
 
-// Re-injects inline <script> tags from the new Barba container so their
-// code executes again. Needed because Barba swaps HTML but doesn't re-run scripts.
+// Re-injects inline <script> tags so their code runs again after Barba swap.
 function rerunEmbedScripts(container) {
   if (!container) return;
   container.querySelectorAll("script").forEach((old) => {
@@ -109,14 +137,79 @@ function rerunEmbedScripts(container) {
   });
 }
 
-// Remove elements that were appended to <body> during init and won't be
-// removed automatically when Barba swaps the container.
+// Remove elements appended to <body> during init that won't be removed with the container.
 function cleanupBodyAppended() {
   document.querySelector(".pcg_modal_overlay")?.remove();
 }
 
-// scribble.text.js has no exposed init function so we replicate it here.
-// Includes a guard so already-initialized elements are skipped.
+// Swiper init — anonymous DOMContentLoaded in site.bundle.min.js, replicated here.
+function initSwiperInstances() {
+  nextPage.querySelectorAll("[data-swiper-id]").forEach((section) => {
+    const swiperEl = section.querySelector(".swiper");
+    const nextEl = section.querySelector(".future-swiper-next");
+    const prevEl = section.querySelector(".future-swiper-prev");
+    if (!swiperEl || !nextEl || !prevEl) return;
+    new Swiper(swiperEl, {
+      slidesPerView: "auto",
+      slidesPerGroup: 1,
+      spaceBetween: 8,
+      speed: 700,
+      grabCursor: true,
+      centeredSlides: false,
+      loop: false,
+      snapToSlideEdge: true,
+      normalizeSlideIndex: true,
+      watchOverflow: true,
+      navigation: { nextEl, prevEl }
+    });
+  });
+}
+
+// Hero folder card flip — anonymous DOMContentLoaded in site.bundle.min.js, replicated here.
+function initHeroFolderCards() {
+  if (typeof gsap === "undefined") return;
+  nextPage.querySelectorAll(".hero_list_item").forEach((item) => {
+    const card = item.querySelector(".hero_folder_card");
+    const link = item.querySelector(".hero_list_item_link");
+    if (!card || !link) return;
+
+    const front = card.querySelector(".hero_folder_front");
+    const thumbs = Array.from(card.querySelectorAll(".hero_folder_thumb"));
+    const layers = [front, ...thumbs].filter(Boolean);
+    if (!front || !thumbs.length) return;
+
+    thumbs.forEach((thumb, i) => { thumb.style.zIndex = 90 - i * 5; });
+    front.style.zIndex = 100;
+
+    gsap.set(layers, {
+      rotationX: 0,
+      y: 0,
+      transformOrigin: "50% 100%",
+      transformStyle: "preserve-3d",
+      force3D: true
+    });
+
+    const tl = gsap.timeline({ paused: true });
+    tl.to(layers, {
+      duration: 0.45,
+      ease: "power3.out",
+      stagger: 0.03,
+      rotationX: (i) => Math.min(-45 + i * 10, 0),
+      y: (i) => i * -4,
+      overwrite: true
+    });
+
+    const open = () => tl.play();
+    const close = () => tl.reverse();
+
+    link.addEventListener("mouseenter", open);
+    link.addEventListener("mouseleave", close);
+    link.addEventListener("focus", open);
+    link.addEventListener("blur", close);
+  });
+}
+
+// scribble.text.js — no exposed init function, replicated here with duplicate guard.
 function initScribble() {
   const scribbles = [
     "M4 12 C70 8, 140 16, 296 10",
@@ -153,10 +246,7 @@ function initScribble() {
         duration: 1,
         ease: "power2.out",
         delay: index * 0.15,
-        scrollTrigger: {
-          trigger: el,
-          start: "top 80%"
-        }
+        scrollTrigger: { trigger: el, start: "top 80%" }
       });
     }
   });
@@ -170,19 +260,14 @@ function initScribble() {
 
 function runPageOnceAnimation(next) {
   const tl = gsap.timeline();
-
-  tl.call(() => {
-    resetPage(next);
-  }, null, 0);
-
+  tl.call(() => resetPage(next), null, 0);
   return tl;
 }
 
 function runPageLeaveAnimation(current) {
   const tl = gsap.timeline({
     onComplete: () => {
-      // Old page is fully faded out and invisible —
-      // safe to destroy now without any visible snapping
+      // Old page fully invisible — safe to destroy with no visible snapping
       if (typeof VDJ !== "undefined") VDJ.destroy();
       cleanupBodyAppended();
       current.remove();
@@ -198,31 +283,45 @@ function runPageLeaveAnimation(current) {
   return tl;
 }
 
-function runPageEnterAnimation(next) {
-  const tl = gsap.timeline();
-
+// Enter animation runs VDJ.init() and all page inits BEFORE fading in —
+// this prevents SplitText and other effects from flashing in their
+// "natural" state before being hidden by their initial animation values.
+async function runPageEnterAnimation(next) {
   if (reducedMotion) {
-    tl.set(next, { autoAlpha: 1 });
-    tl.add("pageReady");
-    tl.call(resetPage, [next], "pageReady");
-    return new Promise(resolve => tl.call(resolve, null, "pageReady"));
+    gsap.set(next, { autoAlpha: 1 });
+    resetPage(next);
+    return;
   }
 
-  tl.add("startEnter", 0);
+  // Two frames for layout to fully settle after leave
+  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
 
-  tl.fromTo(next, {
-    autoAlpha: 0,
-  }, {
-    autoAlpha: 1,
-    duration: 0.5,
-  }, "startEnter");
+  // Init while page is still invisible — SplitText, ScrollTrigger, and all
+  // effects set their initial states before anyone can see them
+  if (typeof VDJ !== "undefined") VDJ.init();
+  initAfterEnterFunctions(next);
 
-  tl.add("pageReady");
-  tl.call(resetPage, [next], "pageReady");
+  if (window.lenis) {
+    window.lenis.resize();
+    window.lenis.start();
+  }
 
-  return new Promise(resolve => {
-    tl.call(resolve, null, "pageReady");
+  if (hasScrollTrigger) {
+    ScrollTrigger.refresh();
+  }
+
+  // Brief pause so ScrollTrigger measurements settle
+  await new Promise(resolve => setTimeout(resolve, 30));
+
+  // Now fade in — everything is already in its correct initial state
+  await new Promise(resolve => {
+    gsap.fromTo(next,
+      { autoAlpha: 0 },
+      { autoAlpha: 1, duration: 0.5, onComplete: resolve }
+    );
   });
+
+  resetPage(next);
 }
 
 
@@ -231,51 +330,39 @@ function runPageEnterAnimation(next) {
 // BARBA HOOKS + INIT
 // -----------------------------------------
 
-barba.hooks.beforeEnter(data => {
-  // Position incoming container on top during transition
+// Fires before everything — hides and positions new container
+// before the leave animation even starts, preventing any flash.
+barba.hooks.before(data => {
   gsap.set(data.next.container, {
     position: "fixed",
     top: 0,
     left: 0,
     right: 0,
+    autoAlpha: 0
   });
+});
 
-  // Stop smooth scroll during transition
+barba.hooks.beforeEnter(data => {
   if (window.lenis) window.lenis.stop();
-
   initBeforeEnterFunctions(data.next.container);
   applyThemeFrom(data.next.container);
 });
 
 barba.hooks.afterLeave(() => {
-  // Intentionally empty — destroy happens in runPageLeaveAnimation
-  // onComplete, init happens in afterEnter
+  // Intentionally empty — destroy happens in runPageLeaveAnimation onComplete,
+  // init happens inside runPageEnterAnimation before the fade-in
 });
 
 barba.hooks.enter(data => {
   initBarbaNavUpdate(data);
 });
 
-barba.hooks.afterEnter(data => {
-  // Double rAF gives the browser two full frames to finalize layout
-  // before ScrollTrigger measures anything, fixing timing issues
-  // with text effects, hero toggle, and other scroll-based animations.
-  requestAnimationFrame(() => {
-    requestAnimationFrame(() => {
-      if (typeof VDJ !== "undefined") VDJ.init();
-
-      initAfterEnterFunctions(data.next.container);
-
-      if (window.lenis) {
-        window.lenis.resize();
-        window.lenis.start();
-      }
-
-      if (hasScrollTrigger) {
-        ScrollTrigger.refresh();
-      }
-    });
-  });
+barba.hooks.afterEnter(() => {
+  // Safety net — VDJ.init() and inits already ran inside runPageEnterAnimation
+  if (window.lenis) {
+    window.lenis.resize();
+    window.lenis.start();
+  }
 });
 
 barba.init({
@@ -285,7 +372,7 @@ barba.init({
   transitions: [
     {
       name: "default",
-      sync: true,
+      sync: false, // Sequential: leave fully completes before enter starts
 
       // First page load
       async once(data) {
@@ -298,7 +385,7 @@ barba.init({
         return runPageLeaveAnimation(data.current.container);
       },
 
-      // New page enters
+      // New page enters — inits run before fade-in
       async enter(data) {
         return runPageEnterAnimation(data.next.container);
       }
@@ -313,14 +400,8 @@ barba.init({
 // -----------------------------------------
 
 const themeConfig = {
-  light: {
-    nav: "dark",
-    transition: "light"
-  },
-  dark: {
-    nav: "light",
-    transition: "dark"
-  }
+  light: { nav: "dark", transition: "light" },
+  dark: { nav: "light", transition: "dark" }
 };
 
 function applyThemeFrom(container) {
@@ -347,8 +428,7 @@ function resetPage(container) {
 }
 
 function debounceOnWidthChange(fn, ms) {
-  let last = innerWidth,
-    timer;
+  let last = innerWidth, timer;
   return function (...args) {
     clearTimeout(timer);
     timer = setTimeout(() => {
