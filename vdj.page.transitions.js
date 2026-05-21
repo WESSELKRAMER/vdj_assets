@@ -293,8 +293,8 @@ async function runPageEnterAnimation(next) {
     return;
   }
 
-  // Two frames for layout to fully settle after leave
-  await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+  // Single rAF for layout to settle after leave
+  await new Promise(resolve => requestAnimationFrame(resolve));
 
   // Init while page is still invisible — SplitText, ScrollTrigger, and all
   // effects set their initial states before anyone can see them
@@ -310,10 +310,7 @@ async function runPageEnterAnimation(next) {
     ScrollTrigger.refresh();
   }
 
-  // Brief pause so ScrollTrigger measurements settle
-  await new Promise(resolve => setTimeout(resolve, 30));
-
-  // Now fade in — everything is already in its correct initial state
+  // Fade in — everything already in its correct initial state
   await new Promise(resolve => {
     gsap.fromTo(next,
       { autoAlpha: 0 },
