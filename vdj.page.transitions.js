@@ -245,20 +245,23 @@ async function runPageEnterAnimation(next) {
   if (reducedMotion) {
     gsap.set(next, { autoAlpha: 1 });
     resetPage(next);
+    initAfterEnterFunctions(next);
     return;
   }
 
   await new Promise(resolve => requestAnimationFrame(resolve));
   await document.fonts.ready;
 
+  // Phase 1: VDJ only — sets up SplitText, hero toggle, canvas etc.
+  // while page is invisible so elements start in their correct hidden state
   if (typeof VDJ !== "undefined") VDJ.init();
-  initAfterEnterFunctions(next);
 
   if (window.lenis) {
     window.lenis.resize();
     window.lenis.start();
   }
 
+  // Fade in with VDJ ready but before heavy page-specific inits
   await new Promise(resolve => {
     gsap.fromTo(next,
       { autoAlpha: 0 },
@@ -267,6 +270,10 @@ async function runPageEnterAnimation(next) {
   });
 
   resetPage(next);
+
+  // Phase 2: expensive page-specific inits after fade-in
+  // Page is already visible so layout work here doesn't cause a flash
+  initAfterEnterFunctions(next);
 }
 
 
