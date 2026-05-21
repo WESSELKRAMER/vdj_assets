@@ -1,3 +1,7 @@
+// -----------------------------------------
+// VDJ PAGE TRANSITIONS
+// -----------------------------------------
+
 gsap.registerPlugin(CustomEase);
 
 history.scrollRestoration = "manual";
@@ -5,6 +9,7 @@ history.scrollRestoration = "manual";
 let nextPage = document;
 let onceFunctionsInitialized = false;
 
+// Lenis is managed entirely by VDJ (window.lenis) — no separate instance here
 const hasScrollTrigger = typeof window.ScrollTrigger !== "undefined";
 
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -22,72 +27,70 @@ gsap.defaults({ ease: "osmo", duration: durationDefault });
 
 
 
+// -----------------------------------------
+// FUNCTION REGISTRY
+// -----------------------------------------
+
 function initOnceFunctions() {
   if (onceFunctionsInitialized) return;
   onceFunctionsInitialized = true;
+
+  // VDJ handles: Lenis, ScrollTrigger, canvas, text loops,
+  // scroll animations, split text, navigation, footer parallax, etc.
   if (typeof VDJ !== "undefined") VDJ.init();
 }
 
 function initBeforeEnterFunctions(next) {
   nextPage = next || document;
+
+  // Re-inject inline embed scripts so their functions get re-defined.
+  // They won't auto-run (DOMContentLoaded already fired) — we call them
+  // manually in initAfterEnterFunctions below.
   rerunEmbedScripts(next);
 }
 
 function initAfterEnterFunctions(next) {
   nextPage = next || document;
 
-  if (typeof initScrollAnimations === "function") {
-    initScrollAnimations();
-  }
-
-  if (typeof initDraggableMarquee === "function" && has("[data-draggable-marquee-init]")) {
-    initDraggableMarquee();
-  }
-
-  if (typeof Swiper !== "undefined" && has("[data-swiper-id]")) {
-    initSwiperInstances();
-  }
-
-  if (typeof initHoverCharStagger === "function" && has("[data-hover-chars]")) {
-    initHoverCharStagger();
-  }
-
-  if (has(".hero_list_item")) {
-    initHeroFolderCards();
-  }
-
-  if (typeof initDynamicCurrentYear === "function") {
-    initDynamicCurrentYear();
-  }
-
+  // ── bunny.js ──────────────────────────────────────────────────────────────
   if (typeof initBunnyPlayerBackground === "function" && has("[data-bunny-background-init]")) {
     initBunnyPlayerBackground();
   }
 
+  // ── highlight.text.js ─────────────────────────────────────────────────────
   if (typeof initHighlightText === "function" && has("[data-highlight-text]")) {
     initHighlightText();
   }
 
+  // ── image.gallery.js ──────────────────────────────────────────────────────
+  // No named init function — replicate the DOMContentLoaded call directly.
   if (typeof createLightbox === "function" && has("[data-gallery]")) {
     nextPage.querySelectorAll("[data-gallery]").forEach(wrapper => createLightbox(wrapper));
   }
 
+  // ── parallax.scroll.content.js ────────────────────────────────────────────
   if (typeof VDJ_ParallaxImages !== "undefined" && has("[data-parallax]")) {
     VDJ_ParallaxImages.init(nextPage);
   }
 
+  // ── people.flip.js ────────────────────────────────────────────────────────
   if (typeof initPersonalCutoutToGrid === "function" && has(".personal_cutout_wrapper")) {
     initPersonalCutoutToGrid();
   }
 
+  // ── scribble.text.js ──────────────────────────────────────────────────────
+  // No exposed function — replicated as initScribble() below.
   if (has("[data-scribble]")) {
     initScribble();
   }
 
+  // ── Embed: initLayeredIllustration ────────────────────────────────────────
+  // Re-defined by rerunEmbedScripts above, called manually here.
   if (typeof initLayeredIllustration === "function" && has(".sequence_section")) {
     initLayeredIllustration();
   }
 
+  // ── Settle ────────────────────────────────────────────────────────────────
   if (window.lenis) window.lenis.resize();
 
   if (hasScrollTrigger) {
@@ -95,6 +98,8 @@ function initAfterEnterFunctions(next) {
   }
 }
 
+// Re-injects inline <script> tags from the new Barba container so their
+// code executes again. Needed because Barba swaps HTML but doesn't re-run scripts.
 function rerunEmbedScripts(container) {
   if (!container) return;
   container.querySelectorAll("script").forEach((old) => {
@@ -104,75 +109,14 @@ function rerunEmbedScripts(container) {
   });
 }
 
+// Remove elements that were appended to <body> during init and won't be
+// removed automatically when Barba swaps the container.
 function cleanupBodyAppended() {
   document.querySelector(".pcg_modal_overlay")?.remove();
 }
 
-function initSwiperInstances() {
-  nextPage.querySelectorAll("[data-swiper-id]").forEach((section) => {
-    const swiperEl = section.querySelector(".swiper");
-    const nextEl = section.querySelector(".future-swiper-next");
-    const prevEl = section.querySelector(".future-swiper-prev");
-    if (!swiperEl || !nextEl || !prevEl) return;
-    new Swiper(swiperEl, {
-      slidesPerView: "auto",
-      slidesPerGroup: 1,
-      spaceBetween: 8,
-      speed: 700,
-      grabCursor: true,
-      centeredSlides: false,
-      loop: false,
-      snapToSlideEdge: true,
-      normalizeSlideIndex: true,
-      watchOverflow: true,
-      navigation: { nextEl, prevEl }
-    });
-  });
-}
-
-function initHeroFolderCards() {
-  if (typeof gsap === "undefined") return;
-  nextPage.querySelectorAll(".hero_list_item").forEach((item) => {
-    const card = item.querySelector(".hero_folder_card");
-    const link = item.querySelector(".hero_list_item_link");
-    if (!card || !link) return;
-
-    const front = card.querySelector(".hero_folder_front");
-    const thumbs = Array.from(card.querySelectorAll(".hero_folder_thumb"));
-    const layers = [front, ...thumbs].filter(Boolean);
-    if (!front || !thumbs.length) return;
-
-    thumbs.forEach((thumb, i) => { thumb.style.zIndex = 90 - i * 5; });
-    front.style.zIndex = 100;
-
-    gsap.set(layers, {
-      rotationX: 0,
-      y: 0,
-      transformOrigin: "50% 100%",
-      transformStyle: "preserve-3d",
-      force3D: true
-    });
-
-    const tl = gsap.timeline({ paused: true });
-    tl.to(layers, {
-      duration: 0.45,
-      ease: "power3.out",
-      stagger: 0.03,
-      rotationX: (i) => Math.min(-45 + i * 10, 0),
-      y: (i) => i * -4,
-      overwrite: true
-    });
-
-    const open = () => tl.play();
-    const close = () => tl.reverse();
-
-    link.addEventListener("mouseenter", open);
-    link.addEventListener("mouseleave", close);
-    link.addEventListener("focus", open);
-    link.addEventListener("blur", close);
-  });
-}
-
+// scribble.text.js has no exposed init function so we replicate it here.
+// Includes a guard so already-initialized elements are skipped.
 function initScribble() {
   const scribbles = [
     "M4 12 C70 8, 140 16, 296 10",
@@ -209,7 +153,10 @@ function initScribble() {
         duration: 1,
         ease: "power2.out",
         delay: index * 0.15,
-        scrollTrigger: { trigger: el, start: "top 80%" }
+        scrollTrigger: {
+          trigger: el,
+          start: "top 80%"
+        }
       });
     }
   });
@@ -217,15 +164,25 @@ function initScribble() {
 
 
 
+// -----------------------------------------
+// PAGE TRANSITIONS
+// -----------------------------------------
+
 function runPageOnceAnimation(next) {
   const tl = gsap.timeline();
-  tl.call(() => resetPage(next), null, 0);
+
+  tl.call(() => {
+    resetPage(next);
+  }, null, 0);
+
   return tl;
 }
 
 function runPageLeaveAnimation(current) {
   const tl = gsap.timeline({
     onComplete: () => {
+      // Old page is fully faded out and invisible —
+      // safe to destroy now without any visible snapping
       if (typeof VDJ !== "undefined") VDJ.destroy();
       cleanupBodyAppended();
       current.remove();
@@ -236,83 +193,89 @@ function runPageLeaveAnimation(current) {
     return tl.set(current, { autoAlpha: 0 });
   }
 
-  tl.to(current, { autoAlpha: 0, duration: 0.7 });
+  tl.to(current, { autoAlpha: 0, duration: 0.4 });
 
   return tl;
 }
 
-async function runPageEnterAnimation(next) {
+function runPageEnterAnimation(next) {
+  const tl = gsap.timeline();
+
   if (reducedMotion) {
-    gsap.set(next, { autoAlpha: 1 });
-    resetPage(next);
-    initAfterEnterFunctions(next);
-    return;
+    tl.set(next, { autoAlpha: 1 });
+    tl.add("pageReady");
+    tl.call(resetPage, [next], "pageReady");
+    return new Promise(resolve => tl.call(resolve, null, "pageReady"));
   }
 
-  await new Promise(resolve => requestAnimationFrame(resolve));
+  tl.add("startEnter", 0);
 
-  await Promise.race([
-    document.fonts.ready,
-    new Promise(resolve => setTimeout(resolve, 500))
-  ]);
+  tl.fromTo(next, {
+    autoAlpha: 0,
+  }, {
+    autoAlpha: 1,
+    duration: 0.5,
+  }, "startEnter");
 
-  if (typeof VDJ !== "undefined") VDJ.init();
+  tl.add("pageReady");
+  tl.call(resetPage, [next], "pageReady");
 
-  if (window.lenis) {
-    window.lenis.resize();
-    window.lenis.start();
-  }
-
-  const fadeTl = gsap.timeline();
-
-  fadeTl.fromTo(next,
-    { autoAlpha: 0 },
-    { autoAlpha: 0.15, duration: 0.7, ease: "power2.in" }
-  );
-
-  initAfterEnterFunctions(next);
-
-  fadeTl.to(next, { autoAlpha: 1, duration: 1.1, ease: "power2.out" });
-
-  await new Promise(resolve => fadeTl.call(resolve));
-
-  resetPage(next);
+  return new Promise(resolve => {
+    tl.call(resolve, null, "pageReady");
+  });
 }
 
 
 
-barba.hooks.before(data => {
-  const navStatusEl = document.querySelector("[data-navigation-status]");
-  if (navStatusEl?.getAttribute("data-navigation-status") === "active") {
-    document.querySelector('[data-navigation-toggle="close"]')?.click();
-  }
+// -----------------------------------------
+// BARBA HOOKS + INIT
+// -----------------------------------------
 
+barba.hooks.beforeEnter(data => {
+  // Position incoming container on top during transition
   gsap.set(data.next.container, {
     position: "fixed",
     top: 0,
     left: 0,
     right: 0,
-    autoAlpha: 0
   });
-});
 
-barba.hooks.beforeEnter(data => {
+  // Stop smooth scroll during transition
   if (window.lenis) window.lenis.stop();
+
   initBeforeEnterFunctions(data.next.container);
   applyThemeFrom(data.next.container);
 });
 
-barba.hooks.afterLeave(() => {});
+barba.hooks.afterLeave(() => {
+  // Intentionally empty — destroy happens in runPageLeaveAnimation
+  // onComplete, init happens in afterEnter
+});
 
 barba.hooks.enter(data => {
   initBarbaNavUpdate(data);
 });
 
-barba.hooks.afterEnter(() => {
-  if (window.lenis) {
-    window.lenis.resize();
-    window.lenis.start();
-  }
+barba.hooks.afterEnter(data => {
+  // Double rAF gives the browser two full frames to finalize layout
+  // before ScrollTrigger measures anything, fixing timing issues
+  // with text effects, hero toggle, and other scroll-based animations.
+  requestAnimationFrame(() => {
+    requestAnimationFrame(() => {
+      if (typeof VDJ !== "undefined") VDJ.init();
+
+      initAfterEnterFunctions(data.next.container);
+
+      if (window.lenis) {
+        window.lenis.resize();
+        window.lenis.start();
+      }
+
+      if (hasScrollTrigger) {
+        ScrollTrigger.refresh();
+      }
+    });
+  });
 });
 
 barba.init({
@@ -322,17 +285,20 @@ barba.init({
   transitions: [
     {
       name: "default",
-      sync: false,
+      sync: true,
 
+      // First page load
       async once(data) {
         initOnceFunctions();
         return runPageOnceAnimation(data.next.container);
       },
 
+      // Current page leaves
       async leave(data) {
         return runPageLeaveAnimation(data.current.container);
       },
 
+      // New page enters
       async enter(data) {
         return runPageEnterAnimation(data.next.container);
       }
@@ -342,9 +308,19 @@ barba.init({
 
 
 
+// -----------------------------------------
+// GENERIC + HELPERS
+// -----------------------------------------
+
 const themeConfig = {
-  light: { nav: "dark", transition: "light" },
-  dark: { nav: "light", transition: "dark" }
+  light: {
+    nav: "dark",
+    transition: "light"
+  },
+  dark: {
+    nav: "light",
+    transition: "dark"
+  }
 };
 
 function applyThemeFrom(container) {
@@ -371,7 +347,8 @@ function resetPage(container) {
 }
 
 function debounceOnWidthChange(fn, ms) {
-  let last = innerWidth, timer;
+  let last = innerWidth,
+    timer;
   return function (...args) {
     clearTimeout(timer);
     timer = setTimeout(() => {
