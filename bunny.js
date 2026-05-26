@@ -22,18 +22,18 @@ function initBunnyPlayerBackground() {
     if (!player.hasAttribute("data-player-activated")) setActivated(false);
     if (!player.hasAttribute("data-player-status")) setStatus("idle");
 
-    var lazyMode = player.getAttribute("data-player-lazy");
+    var lazyMode  = player.getAttribute("data-player-lazy");
     var isLazyTrue = lazyMode === "true";
-    var autoplay = player.getAttribute("data-player-autoplay") === "true";
+    var autoplay   = player.getAttribute("data-player-autoplay") === "true";
     var initialMuted = player.getAttribute("data-player-muted") === "true";
 
     var pendingPlay = false;
-    var isAttached = false;
+    var isAttached  = false;
     var lastPauseBy = "";
 
-    video.muted = autoplay ? true : initialMuted;
-    video.loop = autoplay;
-    video.preload = isLazyTrue ? "none" : "auto";
+    video.muted    = autoplay ? true : initialMuted;
+    video.loop     = autoplay;
+    video.preload  = isLazyTrue ? "none" : "auto";
 
     video.setAttribute("muted", "");
     video.setAttribute("playsinline", "");
@@ -60,6 +60,21 @@ function initBunnyPlayerBackground() {
 
     var canUseHlsJs =
       !!(window.Hls && Hls.isSupported()) && !isSafariNative;
+
+    // Play if the source is ready, otherwise just flag it so
+    // MANIFEST_PARSED / canplay handlers can pick it up.
+    function playWhenReady() {
+      pendingPlay = true;
+      lastPauseBy = "";
+      setStatus("loading");
+
+      // Only call safePlay if media is already attached and has enough data.
+      // If still loading, pendingPlay=true is enough — the event handlers below
+      // will call safePlay once the source is actually ready.
+      if (isAttached && (video.readyState >= 2 || isSafariNative)) {
+        safePlay(video);
+      }
+    }
 
     function attachMediaOnce() {
       if (isAttached) return;
@@ -88,12 +103,10 @@ function initBunnyPlayerBackground() {
 
         function forceHighestLevel() {
           if (!hls.levels || !hls.levels.length) return;
-
-          var highestLevel = hls.levels.length - 1;
-
-          hls.currentLevel = highestLevel;
-          hls.loadLevel = highestLevel;
-          hls.nextLevel = highestLevel;
+          var highest = hls.levels.length - 1;
+          hls.currentLevel = highest;
+          hls.loadLevel    = highest;
+          hls.nextLevel    = highest;
         }
 
         hls.attachMedia(video);
@@ -104,24 +117,20 @@ function initBunnyPlayerBackground() {
 
         hls.on(Hls.Events.MANIFEST_PARSED, function () {
           forceHighestLevel();
-          readyIfIdle(player, pendingPlay);
+          // Source is now ready — if play was requested before media loaded, fire it now.
+          if (pendingPlay) {
+            safePlay(video);
+          } else {
+            readyIfIdle(player, pendingPlay);
+          }
         });
 
-        hls.on(Hls.Events.LEVEL_SWITCHING, function () {
-          forceHighestLevel();
-        });
-
-        hls.on(Hls.Events.LEVEL_SWITCHED, function () {
-          forceHighestLevel();
-        });
-
-        hls.on(Hls.Events.FRAG_CHANGED, function () {
-          forceHighestLevel();
-        });
+        hls.on(Hls.Events.LEVEL_SWITCHING, forceHighestLevel);
+        hls.on(Hls.Events.LEVEL_SWITCHED,  forceHighestLevel);
+        hls.on(Hls.Events.FRAG_CHANGED,    forceHighestLevel);
 
         hls.on(Hls.Events.ERROR, function (_, data) {
           if (!data || !data.fatal) return;
-
           if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
             try { hls.startLoad(); } catch (_) {}
           } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
@@ -133,18 +142,16 @@ function initBunnyPlayerBackground() {
 
         player._hls = hls;
 
-      } else if (isSafariNative) {
-        video.src = src;
-
-        video.addEventListener("loadedmetadata", function () {
-          readyIfIdle(player, pendingPlay);
-        }, { once: true });
-
       } else {
+        // Safari native HLS or fallback
         video.src = src;
 
         video.addEventListener("loadedmetadata", function () {
-          readyIfIdle(player, pendingPlay);
+          if (pendingPlay) {
+            safePlay(video);
+          } else {
+            readyIfIdle(player, pendingPlay);
+          }
         }, { once: true });
       }
     }
@@ -156,11 +163,7 @@ function initBunnyPlayerBackground() {
     function togglePlay() {
       if (video.paused || video.ended) {
         if (isLazyTrue && !isAttached) attachMediaOnce();
-
-        pendingPlay = true;
-        lastPauseBy = "";
-        setStatus("loading");
-        safePlay(video);
+        playWhenReady();
       } else {
         lastPauseBy = "manual";
         video.pause();
@@ -205,7 +208,12 @@ function initBunnyPlayerBackground() {
     });
 
     video.addEventListener("canplay", function () {
-      readyIfIdle(player, pendingPlay);
+      // If play was requested while media was still loading, fire it now.
+      if (pendingPlay) {
+        safePlay(video);
+      } else {
+        readyIfIdle(player, pendingPlay);
+      }
     });
 
     video.addEventListener("ended", function () {
@@ -224,17 +232,16 @@ function initBunnyPlayerBackground() {
           var inView = entry.isIntersecting && entry.intersectionRatio > 0;
 
           if (inView) {
-            if (isLazyTrue && !isAttached) attachMediaOnce();
-
-            if (lastPauseBy === "io" || (video.paused && lastPauseBy !== "manual")) {
+            if (isLazyTrue && !isAttached) {
+              // Attach first, then flag pending — safePlay fires from
+              // MANIFEST_PARSED / loadedmetadata once the source is ready.
+              pendingPlay  = true;
+              lastPauseBy  = "";
               setStatus("loading");
-
-              if (video.paused) {
-                pendingPlay = true;
-                safePlay(video);
-              }
-
+              attachMediaOnce();
+            } else if (lastPauseBy === "io" || (video.paused && lastPauseBy !== "manual")) {
               lastPauseBy = "";
+              playWhenReady();
             }
           } else {
             if (!video.paused && !video.ended) {
@@ -262,7 +269,6 @@ function initBunnyPlayerBackground() {
 
   function safePlay(video) {
     var p = video.play();
-
     if (p && typeof p.then === "function") {
       p.catch(function () {});
     }
