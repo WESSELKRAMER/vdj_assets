@@ -1,280 +1,163 @@
 function initBunnyPlayerBackground() {
-  document.querySelectorAll("[data-bunny-background-init]").forEach(function (player) {
-    var src = player.getAttribute("data-player-src");
+  document.querySelectorAll('[data-bunny-background-init]').forEach(function(player) {
+    var src = player.getAttribute('data-player-src');
     if (!src) return;
 
-    var video = player.querySelector("video");
+    var video = player.querySelector('video');
     if (!video) return;
 
-    try { video.pause(); } catch (_) {}
-    try { video.removeAttribute("src"); video.load(); } catch (_) {}
+    try { video.pause(); } catch(_) {}
+    try { video.removeAttribute('src'); video.load(); } catch(_) {}
 
+    // Attribute helpers
     function setStatus(s) {
-      if (player.getAttribute("data-player-status") !== s) {
-        player.setAttribute("data-player-status", s);
+      if (player.getAttribute('data-player-status') !== s) {
+        player.setAttribute('data-player-status', s);
       }
     }
+    function setActivated(v) { player.setAttribute('data-player-activated', v ? 'true' : 'false'); }
+    if (!player.hasAttribute('data-player-activated')) setActivated(false);
 
-    function setActivated(v) {
-      player.setAttribute("data-player-activated", v ? "true" : "false");
-    }
+    // Flags
+    var lazyMode   = player.getAttribute('data-player-lazy'); // "true" | "false" (no meta)
+    var isLazyTrue = lazyMode === 'true';
+    var autoplay   = player.getAttribute('data-player-autoplay') === 'true';
+    var initialMuted = player.getAttribute('data-player-muted') === 'true';
 
-    if (!player.hasAttribute("data-player-activated")) setActivated(false);
-    if (!player.hasAttribute("data-player-status")) setStatus("idle");
-
-    var lazyMode  = player.getAttribute("data-player-lazy");
-    var isLazyTrue = lazyMode === "true";
-    var autoplay   = player.getAttribute("data-player-autoplay") === "true";
-    var initialMuted = player.getAttribute("data-player-muted") === "true";
-
+    // Used to suppress 'ready' flicker when user just pressed play in lazy modes
     var pendingPlay = false;
-    var isAttached  = false;
-    var lastPauseBy = "";
 
-    video.muted    = autoplay ? true : initialMuted;
-    video.loop     = autoplay;
-    video.preload  = isLazyTrue ? "none" : "auto";
+    // Autoplay forces muted + loop; IO will drive play/pause
+    if (autoplay) { video.muted = true; video.loop = true; }
+    else { video.muted = initialMuted; }
 
-    video.setAttribute("muted", "");
-    video.setAttribute("playsinline", "");
-    video.setAttribute("webkit-playsinline", "");
+    video.setAttribute('muted', '');
+    video.setAttribute('playsinline', '');
+    video.setAttribute('webkit-playsinline', '');
     video.playsInline = true;
-
-    if (typeof video.disableRemotePlayback !== "undefined") {
-      video.disableRemotePlayback = true;
-    }
-
+    if (typeof video.disableRemotePlayback !== 'undefined') video.disableRemotePlayback = true;
     if (autoplay) video.autoplay = false;
 
-    var ua = navigator.userAgent.toLowerCase();
+    var isSafariNative = !!video.canPlayType('application/vnd.apple.mpegurl');
+    var canUseHlsJs    = !!(window.Hls && Hls.isSupported()) && !isSafariNative;
 
-    var isSafari =
-      ua.indexOf("safari") > -1 &&
-      ua.indexOf("chrome") === -1 &&
-      ua.indexOf("crios") === -1 &&
-      ua.indexOf("chromium") === -1 &&
-      ua.indexOf("android") === -1;
-
-    var isSafariNative =
-      isSafari && !!video.canPlayType("application/vnd.apple.mpegurl");
-
-    var canUseHlsJs =
-      !!(window.Hls && Hls.isSupported()) && !isSafariNative;
-
-    // Play if the source is ready, otherwise just flag it so
-    // MANIFEST_PARSED / canplay handlers can pick it up.
-    function playWhenReady() {
-      pendingPlay = true;
-      lastPauseBy = "";
-      setStatus("loading");
-
-      // Only call safePlay if media is already attached and has enough data.
-      // If still loading, pendingPlay=true is enough — the event handlers below
-      // will call safePlay once the source is actually ready.
-      if (isAttached && (video.readyState >= 2 || isSafariNative)) {
-        safePlay(video);
-      }
-    }
-
+    // Attach media only once (for actual playback)
+    var isAttached = false;
+    var userInteracted = false;
+    var lastPauseBy = ''; // 'io' | 'manual' | ''
     function attachMediaOnce() {
       if (isAttached) return;
       isAttached = true;
 
-      if (player._hls) {
-        try { player._hls.destroy(); } catch (_) {}
-        player._hls = null;
-      }
+      if (player._hls) { try { player._hls.destroy(); } catch(_) {} player._hls = null; }
 
-      if (canUseHlsJs) {
-        var hls = new Hls({
-          startLevel: -1,
-          capLevelToPlayerSize: false,
-          maxBufferLength: 45,
-          maxMaxBufferLength: 90,
-          abrEwmaFastVoD: 2,
-          abrEwmaSlowVoD: 5,
-          abrEwmaFastLive: 2,
-          abrEwmaSlowLive: 5,
-          abrBandWidthFactor: 0.95,
-          abrBandWidthUpFactor: 0.9,
-          maxStarvationDelay: 4,
-          maxLoadingDelay: 4
-        });
-
-        function forceHighestLevel() {
-          if (!hls.levels || !hls.levels.length) return;
-          var highest = hls.levels.length - 1;
-          hls.currentLevel = highest;
-          hls.loadLevel    = highest;
-          hls.nextLevel    = highest;
-        }
-
-        hls.attachMedia(video);
-
-        hls.on(Hls.Events.MEDIA_ATTACHED, function () {
-          hls.loadSource(src);
-        });
-
-        hls.on(Hls.Events.MANIFEST_PARSED, function () {
-          forceHighestLevel();
-          // Source is now ready — if play was requested before media loaded, fire it now.
-          if (pendingPlay) {
-            safePlay(video);
-          } else {
-            readyIfIdle(player, pendingPlay);
-          }
-        });
-
-        hls.on(Hls.Events.LEVEL_SWITCHING, forceHighestLevel);
-        hls.on(Hls.Events.LEVEL_SWITCHED,  forceHighestLevel);
-        hls.on(Hls.Events.FRAG_CHANGED,    forceHighestLevel);
-
-        hls.on(Hls.Events.ERROR, function (_, data) {
-          if (!data || !data.fatal) return;
-          if (data.type === Hls.ErrorTypes.NETWORK_ERROR) {
-            try { hls.startLoad(); } catch (_) {}
-          } else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) {
-            try { hls.recoverMediaError(); } catch (_) {}
-          } else {
-            try { hls.destroy(); } catch (_) {}
-          }
-        });
-
-        player._hls = hls;
-
-      } else {
-        // Safari native HLS or fallback
+      if (isSafariNative) {
+        video.preload = isLazyTrue ? 'none' : 'auto';
         video.src = src;
-
-        video.addEventListener("loadedmetadata", function () {
-          if (pendingPlay) {
-            safePlay(video);
-          } else {
-            readyIfIdle(player, pendingPlay);
-          }
+        video.addEventListener('loadedmetadata', function() {
+          readyIfIdle(player, pendingPlay);
         }, { once: true });
+      } else if (canUseHlsJs) {
+        var hls = new Hls({ maxBufferLength: 10 });
+        hls.attachMedia(video);
+        hls.on(Hls.Events.MEDIA_ATTACHED, function() { hls.loadSource(src); });
+        hls.on(Hls.Events.MANIFEST_PARSED, function() {
+          readyIfIdle(player, pendingPlay);
+        });
+        player._hls = hls;
+      } else {
+        video.src = src;
       }
     }
 
-    if (!isLazyTrue) {
+    // Initialize based on lazy mode
+    if (isLazyTrue) {
+      video.preload = 'none';
+    } else {
       attachMediaOnce();
     }
 
+    // Toggle play/pause
     function togglePlay() {
+      userInteracted = true;
       if (video.paused || video.ended) {
         if (isLazyTrue && !isAttached) attachMediaOnce();
-        playWhenReady();
+        pendingPlay = true;
+        lastPauseBy = '';
+        setStatus('loading');
+        safePlay(video);
       } else {
-        lastPauseBy = "manual";
+        lastPauseBy = 'manual';
         video.pause();
       }
     }
 
+    // Toggle mute
     function toggleMute() {
       video.muted = !video.muted;
-      player.setAttribute("data-player-muted", video.muted ? "true" : "false");
+      player.setAttribute('data-player-muted', video.muted ? 'true' : 'false');
     }
 
-    player.addEventListener("click", function (e) {
-      var btn = e.target.closest("[data-player-control]");
+    // Controls (delegated)
+    player.addEventListener('click', function(e) {
+      var btn = e.target.closest('[data-player-control]');
       if (!btn || !player.contains(btn)) return;
-
-      var type = btn.getAttribute("data-player-control");
-
-      if (type === "play" || type === "pause" || type === "playpause") {
-        togglePlay();
-      } else if (type === "mute") {
-        toggleMute();
-      }
+      var type = btn.getAttribute('data-player-control');
+      if (type === 'play' || type === 'pause' || type === 'playpause') togglePlay();
+      else if (type === 'mute') toggleMute();
     });
 
-    video.addEventListener("play", function () {
-      setActivated(true);
-      setStatus("playing");
-    });
+    // Media event wiring
+    video.addEventListener('play', function() { setActivated(true); setStatus('playing'); });
+    video.addEventListener('playing', function() { pendingPlay = false; setStatus('playing'); });
+    video.addEventListener('pause', function() { pendingPlay = false; setStatus('paused'); });
+    video.addEventListener('waiting', function() { setStatus('loading'); });
+    video.addEventListener('canplay', function() { readyIfIdle(player, pendingPlay); });
+    video.addEventListener('ended', function() { pendingPlay = false; setStatus('paused'); setActivated(false); });
 
-    video.addEventListener("playing", function () {
-      pendingPlay = false;
-      setStatus("playing");
-    });
-
-    video.addEventListener("pause", function () {
-      pendingPlay = false;
-      setStatus("paused");
-    });
-
-    video.addEventListener("waiting", function () {
-      setStatus("loading");
-    });
-
-    video.addEventListener("canplay", function () {
-      // If play was requested while media was still loading, fire it now.
-      if (pendingPlay) {
-        safePlay(video);
-      } else {
-        readyIfIdle(player, pendingPlay);
-      }
-    });
-
-    video.addEventListener("ended", function () {
-      pendingPlay = false;
-      setStatus("paused");
-      setActivated(false);
-    });
-
+    // In-view auto play/pause (only when autoplay is true)
     if (autoplay) {
-      if (player._io) {
-        try { player._io.disconnect(); } catch (_) {}
-      }
-
-      var io = new IntersectionObserver(function (entries) {
-        entries.forEach(function (entry) {
+      if (player._io) { try { player._io.disconnect(); } catch(_) {} }
+      var io = new IntersectionObserver(function(entries) {
+        entries.forEach(function(entry) {
           var inView = entry.isIntersecting && entry.intersectionRatio > 0;
-
           if (inView) {
-            if (isLazyTrue && !isAttached) {
-              // Attach first, then flag pending — safePlay fires from
-              // MANIFEST_PARSED / loadedmetadata once the source is ready.
-              pendingPlay  = true;
-              lastPauseBy  = "";
-              setStatus("loading");
-              attachMediaOnce();
-            } else if (lastPauseBy === "io" || (video.paused && lastPauseBy !== "manual")) {
-              lastPauseBy = "";
-              playWhenReady();
+            if (isLazyTrue && !isAttached) attachMediaOnce();
+            if ((lastPauseBy === 'io') || (video.paused && lastPauseBy !== 'manual')) {
+              setStatus('loading');
+              if (video.paused) togglePlay();
+              lastPauseBy = '';
             }
           } else {
             if (!video.paused && !video.ended) {
-              lastPauseBy = "io";
+              lastPauseBy = 'io';
               video.pause();
             }
           }
         });
       }, { threshold: 0.1 });
-
       io.observe(player);
       player._io = io;
     }
   });
 
+  // Helper: Ready status guard
   function readyIfIdle(player, pendingPlay) {
-    if (
-      !pendingPlay &&
-      player.getAttribute("data-player-activated") !== "true" &&
-      player.getAttribute("data-player-status") === "idle"
-    ) {
-      player.setAttribute("data-player-status", "ready");
+    if (!pendingPlay &&
+        player.getAttribute('data-player-activated') !== 'true' &&
+        player.getAttribute('data-player-status') === 'idle') {
+      player.setAttribute('data-player-status', 'ready');
     }
   }
 
+  // Helper: safe programmatic play
   function safePlay(video) {
     var p = video.play();
-    if (p && typeof p.then === "function") {
-      p.catch(function () {});
-    }
+    if (p && typeof p.then === 'function') p.catch(function(){});
   }
 }
 
-document.addEventListener("DOMContentLoaded", function () {
+// Initialize Bunny HTML HLS Player (Background)
+document.addEventListener('DOMContentLoaded', function() {
   initBunnyPlayerBackground();
 });
