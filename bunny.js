@@ -52,13 +52,32 @@ function initBunnyPlayerBackground() {
       if (player._hls) { try { player._hls.destroy(); } catch(_) {} player._hls = null; }
 
       if (isSafariNative) {
-        video.preload = isLazyTrue ? 'none' : 'auto';
+        // Always eager — preload full video regardless of lazy mode
+        video.preload = 'auto';
         video.src = src;
         video.addEventListener('loadedmetadata', function() {
           readyIfIdle(player, pendingPlay);
         }, { once: true });
       } else if (canUseHlsJs) {
-        var hls = new Hls({ maxBufferLength: 10 });
+        var hls = new Hls({
+          // Buffer more content ahead of playback
+          maxBufferLength: 60,          // seconds to keep buffered ahead (was 10)
+          maxMaxBufferLength: 120,      // absolute ceiling on buffer size
+          maxBufferSize: 120 * 1000 * 1000, // 120 MB cap
+          maxBufferHole: 0.3,           // tolerate small gaps without rebuffering
+
+          // Start loading immediately, don't wait for play
+          autoStartLoad: true,
+
+          // Pick the best quality level from the start
+          startLevel: -1,
+          abrEwmaDefaultEstimate: 500000, // initial bandwidth estimate (500kbps)
+
+          // Keep discarded segments around longer so seeks are faster
+          backBufferLength: 30,
+
+          lowLatencyMode: false,
+        });
         hls.attachMedia(video);
         hls.on(Hls.Events.MEDIA_ATTACHED, function() { hls.loadSource(src); });
         hls.on(Hls.Events.MANIFEST_PARSED, function() {
@@ -66,14 +85,17 @@ function initBunnyPlayerBackground() {
         });
         player._hls = hls;
       } else {
+        video.preload = 'auto';
         video.src = src;
       }
     }
 
-    // Initialize based on lazy mode
+    // Initialize: always attach eagerly unless explicitly lazy
     if (isLazyTrue) {
       video.preload = 'none';
     } else {
+      // Attach immediately and start buffering
+      video.preload = 'auto';
       attachMediaOnce();
     }
 
