@@ -1,5 +1,3 @@
-// Hide the container immediately (before first paint) to prevent FOUC.
-// playEnter removes this and takes over.
 (function () {
   const s = document.createElement("style");
   s.id = "vdj-fouc-hide";
