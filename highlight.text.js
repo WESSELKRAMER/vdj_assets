@@ -12,6 +12,7 @@ function initHighlightText() {
       autoSplit: true,
       onSplit(self) {
         const ctx = gsap.context(() => {
+          gsap.set(self.chars, { autoAlpha: fadedValue });
           const tl = gsap.timeline({
             scrollTrigger: {
               scrub: true,
@@ -22,7 +23,7 @@ function initHighlightText() {
             }
           });
           tl.fromTo(self.chars,
-            { autoAlpha: fadedValue },
+            { autoAlpha: fadedValue, immediateRender: true },
             { autoAlpha: 1, stagger: staggerValue, ease: "linear" }
           );
         });
