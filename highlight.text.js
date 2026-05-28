@@ -21,11 +21,10 @@ function initHighlightText() {
               invalidateOnRefresh: true
             }
           });
-          tl.from(self.chars, {
-            autoAlpha: fadedValue,
-            stagger: staggerValue,
-            ease: "linear"
-          });
+          tl.fromTo(self.chars,
+            { autoAlpha: fadedValue },
+            { autoAlpha: 1, stagger: staggerValue, ease: "linear" }
+          );
         });
         return ctx;
       }
