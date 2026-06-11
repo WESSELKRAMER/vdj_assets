@@ -1,10 +1,3 @@
-(function () {
-  const s = document.createElement("style");
-  s.id = "vdj-fouc-hide";
-  s.textContent = "[data-transition-container]{opacity:0!important;visibility:hidden}";
-  (document.head || document.documentElement).appendChild(s);
-})();
-
 gsap.registerPlugin(CustomEase);
 CustomEase.create("osmo", "0.625, 0.05, 0, 1");
 gsap.defaults({ ease: "osmo" });
@@ -55,8 +48,6 @@ function playEnter(container) {
   const navEntry = performance.getEntriesByType("navigation")[0];
   const isBrowserLoad = !!navEntry && (navEntry.type === "navigate" || navEntry.type === "reload");
   sessionStorage.removeItem(TRANSITION_KEY);
-
-  document.getElementById("vdj-fouc-hide")?.remove();
 
   if (reducedMotion || (!isTransitionEnter && !isBrowserLoad)) {
     gsap.set(container, { autoAlpha: 1, clearProps: "opacity,visibility" });
