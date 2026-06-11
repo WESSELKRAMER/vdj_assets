@@ -1,7 +1,7 @@
 (function () {
   const s = document.createElement("style");
   s.id = "vdj-fouc-hide";
-  s.textContent = "[data-transition-container]{opacity:0;visibility:hidden}";
+  s.textContent = "[data-transition-container]{opacity:0!important;visibility:hidden}";
   (document.head || document.documentElement).appendChild(s);
 })();
 
@@ -9,13 +9,16 @@ gsap.registerPlugin(CustomEase);
 CustomEase.create("osmo", "0.625, 0.05, 0, 1");
 gsap.defaults({ ease: "osmo" });
 history.scrollRestoration = "manual";
+
 const TRANSITION_KEY = "vdj:transition";
 const CONTAINER_SELECTOR = "[data-transition-container]";
 const rmMQ = window.matchMedia("(prefers-reduced-motion: reduce)");
 let reducedMotion = rmMQ.matches;
 rmMQ.addEventListener?.("change", (e) => (reducedMotion = e.matches));
 rmMQ.addListener?.((e) => (reducedMotion = e.matches));
+
 let isLeaving = false;
+
 function isInternalLink(a, e) {
   if (!a || e.defaultPrevented) return false;
   if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return false;
@@ -29,6 +32,7 @@ function isInternalLink(a, e) {
   if (samePage) return false;
   return true;
 }
+
 function closeHamburgerBeforeLeave(timeout = 700) {
   const statusEl = document.querySelector("[data-navigation-status]");
   const closeBtn = document.querySelector('[data-navigation-toggle="close"]');
@@ -45,19 +49,21 @@ function closeHamburgerBeforeLeave(timeout = 700) {
     check();
   });
 }
+
 function playEnter(container) {
+  gsap.set(container, { autoAlpha: 0 });
+  document.getElementById("vdj-fouc-hide")?.remove();
+
   const isTransitionEnter = sessionStorage.getItem(TRANSITION_KEY) === "1";
   const navEntry = performance.getEntriesByType("navigation")[0];
-  const isBrowserLoad =
-    !!navEntry && (navEntry.type === "navigate" || navEntry.type === "reload");
+  const isBrowserLoad = !!navEntry && (navEntry.type === "navigate" || navEntry.type === "reload");
   sessionStorage.removeItem(TRANSITION_KEY);
-  // Remove the FOUC-prevention style — GSAP inline styles take over from here
-  document.getElementById("vdj-fouc-hide")?.remove();
+
   if (reducedMotion || (!isTransitionEnter && !isBrowserLoad)) {
     gsap.set(container, { autoAlpha: 1, clearProps: "opacity,visibility" });
     return;
   }
-  gsap.set(container, { autoAlpha: 0 });
+
   gsap.to(container, {
     autoAlpha: 1,
     duration: isBrowserLoad ? 1.2 : 1.1,
@@ -65,6 +71,7 @@ function playEnter(container) {
     onComplete: () => gsap.set(container, { clearProps: "opacity,visibility" })
   });
 }
+
 async function playLeaveAndGo(url, container) {
   if (isLeaving) return;
   isLeaving = true;
@@ -83,16 +90,21 @@ async function playLeaveAndGo(url, container) {
     }
   });
 }
+
 function initTransitions() {
   const container = document.querySelector(CONTAINER_SELECTOR) || document.body;
   playEnter(container);
-  // Fires when page is restored from bfcache (back/forward navigation)
+
   window.addEventListener("pageshow", (e) => {
     if (!e.persisted) return;
     isLeaving = false;
     gsap.killTweensOf(container);
-    gsap.set(container, { autoAlpha: 1, clearProps: "opacity,visibility" });
+    container.style.opacity = "0";
+    requestAnimationFrame(() => {
+      gsap.set(container, { autoAlpha: 1, clearProps: "opacity,visibility" });
+    });
   });
+
   document.addEventListener("click", (e) => {
     const a = e.target.closest("a[href]");
     if (!isInternalLink(a, e)) return;
@@ -100,6 +112,7 @@ function initTransitions() {
     playLeaveAndGo(a.href, container);
   });
 }
+
 if (document.readyState === "loading") {
   document.addEventListener("DOMContentLoaded", initTransitions);
 } else {
