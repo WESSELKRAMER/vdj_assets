@@ -51,19 +51,19 @@ function closeHamburgerBeforeLeave(timeout = 700) {
 }
 
 function playEnter(container) {
-  gsap.set(container, { autoAlpha: 0 });
-  document.getElementById("vdj-fouc-hide")?.remove();
-
   const isTransitionEnter = sessionStorage.getItem(TRANSITION_KEY) === "1";
   const navEntry = performance.getEntriesByType("navigation")[0];
   const isBrowserLoad = !!navEntry && (navEntry.type === "navigate" || navEntry.type === "reload");
   sessionStorage.removeItem(TRANSITION_KEY);
+
+  document.getElementById("vdj-fouc-hide")?.remove();
 
   if (reducedMotion || (!isTransitionEnter && !isBrowserLoad)) {
     gsap.set(container, { autoAlpha: 1, clearProps: "opacity,visibility" });
     return;
   }
 
+  gsap.set(container, { autoAlpha: 0 });
   gsap.to(container, {
     autoAlpha: 1,
     duration: isBrowserLoad ? 1.2 : 1.1,
