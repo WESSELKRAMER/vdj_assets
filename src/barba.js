@@ -239,10 +239,35 @@
     VDJ.setupLenis();
     VDJ.mountGlobals();
 
-    const hasBarba = typeof barba !== "undefined" && document.querySelector(CONTAINER_SELECTOR);
+    let hasBarba =
+      typeof barba !== "undefined" &&
+      document.querySelector(CONTAINER_SELECTOR) &&
+      document.querySelector('[data-barba="wrapper"]');
 
     if (hasBarba) {
       currentLayout = outsideSignature(document.documentElement.outerHTML);
+      try {
+        initBarba();
+      } catch (err) {
+        console.warn("[VDJ] Barba could not start, using normal page loads:", err);
+        hasBarba = false;
+      }
+    }
+
+    if (!hasBarba) startWithoutBarba();
+
+    // Back/forward from the browser cache: the page may still be faded out
+    window.addEventListener("pageshow", (e) => {
+      if (!e.persisted) return;
+      leaving = false;
+      if (window.lenis) window.lenis.start();
+      gsap.set(VDJ.pageParts(), { clearProps: "opacity,visibility" });
+    });
+
+    window.addEventListener("load", () => VDJ.refreshScroll(), { once: true });
+  }
+
+  function initBarba() {
       barba.init({
         transitions: [transition],
         prevent: preventBarba,
@@ -254,27 +279,18 @@
           return false;
         }
       });
-    } else {
-      // No Barba container on this page: classic page loads, but with the
-      // same fade out / fade in as the Barba transition
-      const container = fallbackContainer();
-      VDJ.mount(container, location.pathname);
-      VDJ.fontsReady(800).then(() => {
-        VDJ.refreshScroll();
-        VDJ.reveal(VDJ.pageParts(), { duration: 1.1 });
-      });
-      document.addEventListener("click", onFallbackLinkClick);
-    }
+  }
 
-    // Back/forward from the browser cache: the page may still be faded out
-    window.addEventListener("pageshow", (e) => {
-      if (!e.persisted) return;
-      leaving = false;
-      if (window.lenis) window.lenis.start();
-      gsap.set(VDJ.pageParts(), { clearProps: "opacity,visibility" });
+  // No Barba on this page: classic page loads, but with the same fade out /
+  // fade in as the Barba transition
+  function startWithoutBarba() {
+    const container = fallbackContainer();
+    VDJ.mount(container, location.pathname);
+    VDJ.fontsReady(800).then(() => {
+      VDJ.refreshScroll();
+      VDJ.reveal(VDJ.pageParts(), { duration: 1.1 });
     });
-
-    window.addEventListener("load", () => VDJ.refreshScroll(), { once: true });
+    document.addEventListener("click", onFallbackLinkClick);
   }
 
   let leaving = false;
