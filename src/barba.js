@@ -257,10 +257,13 @@
     } else {
       // No Barba: classic page load
       const container = fallbackContainer();
+      // Only fade in what the head snippet actually hid; a page without a
+      // container is already visible, fading it would cause a flash
+      const wasHidden = container.matches(CONTAINER_SELECTOR);
       VDJ.mount(container, location.pathname);
       VDJ.fontsReady(800).then(() => {
         VDJ.refreshScroll();
-        VDJ.reveal(container, { duration: 1.1 });
+        VDJ.reveal(container, { duration: 1.1, instant: !wasHidden });
       });
     }
 

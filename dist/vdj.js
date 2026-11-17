@@ -192,13 +192,13 @@
   VDJ.reveal = function (container, opts) {
     opts = opts || {};
     const html = document.documentElement;
-    gsap.set(container, { autoAlpha: 0 });
+    if (!opts.instant) gsap.set(container, { autoAlpha: 0 });
     html.classList.remove("vdj-loading");
     html.classList.add("vdj-ready");
     clearTimeout(window.__vdjFailsafe);
     document.dispatchEvent(new CustomEvent("vdj:reveal"));
 
-    if (VDJ.reducedMotion()) {
+    if (opts.instant || VDJ.reducedMotion()) {
       gsap.set(container, { clearProps: "opacity,visibility" });
       return Promise.resolve();
     }
@@ -2786,10 +2786,13 @@
     } else {
       // No Barba: classic page load
       const container = fallbackContainer();
+      // Only fade in what the head snippet actually hid; a page without a
+      // container is already visible, fading it would cause a flash
+      const wasHidden = container.matches(CONTAINER_SELECTOR);
       VDJ.mount(container, location.pathname);
       VDJ.fontsReady(800).then(() => {
         VDJ.refreshScroll();
-        VDJ.reveal(container, { duration: 1.1 });
+        VDJ.reveal(container, { duration: 1.1, instant: !wasHidden });
       });
     }
 
