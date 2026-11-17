@@ -1,0 +1,12 @@
+{
+  "name": "vdj-assets",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "serve": "node test/serve.mjs"
+  },
+  "devDependencies": {
+    "esbuild": "0.24.2"
+  }
+}

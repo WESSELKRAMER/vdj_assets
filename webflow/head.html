@@ -1,0 +1,20 @@
+<!-- Hide the page until the scripts have set it up (prevents the flash on load).
+     Failsafe: shows the page after 4s even if the scripts don't load. -->
+<script>
+  document.documentElement.classList.add("vdj-loading");
+  window.__vdjFailsafe = setTimeout(function () {
+    document.documentElement.classList.remove("vdj-loading");
+  }, 4000);
+</script>
+<style>
+  html.vdj-loading [data-barba="container"],
+  html.vdj-loading [data-split="heading"] { opacity: 0; visibility: hidden; }
+</style>
+
+<!-- Preconnect -->
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="dns-prefetch" href="https://cdn.jsdelivr.net">
+
+<!-- Styles -->
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/lenis@1.2.3/dist/lenis.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/WESSELKRAMER/vdj_assets@COMMIT/dist/vdj.min.css">
