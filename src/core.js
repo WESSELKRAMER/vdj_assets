@@ -187,30 +187,60 @@
 
   VDJ.reducedMotion = () => VDJ.mq("(prefers-reduced-motion: reduce)");
 
-  VDJ.reveal = function (container, opts) {
+  /**
+   * Everything that belongs to the page (not the persistent nav, progress bar
+   * or cursor). Matches the selector in the Webflow head snippet, which hides
+   * these until the reveal. Works on pages with and without a Barba container.
+   */
+  const PERSISTENT = ".navbar_wrapper, .progress-bar-wrap, .cursor, .pcg_modal_overlay, script, style, link, noscript, template";
+  VDJ.pageParts = function () {
+    return Array.from(document.body.children).filter((el) => !el.matches(PERSISTENT));
+  };
+
+  VDJ.reveal = function (targets, opts) {
     opts = opts || {};
+    targets = targets || VDJ.pageParts();
     const html = document.documentElement;
-    if (!opts.instant) gsap.set(container, { autoAlpha: 0 });
+    gsap.set(targets, { autoAlpha: 0 });
     html.classList.remove("vdj-loading");
     html.classList.add("vdj-ready");
     clearTimeout(window.__vdjFailsafe);
     document.dispatchEvent(new CustomEvent("vdj:reveal"));
 
-    if (opts.instant || VDJ.reducedMotion()) {
-      gsap.set(container, { clearProps: "opacity,visibility" });
+    if (VDJ.reducedMotion()) {
+      gsap.set(targets, { clearProps: "opacity,visibility" });
       return Promise.resolve();
     }
 
     return new Promise((resolve) => {
-      gsap.to(container, {
+      gsap.to(targets, {
         autoAlpha: 1,
         duration: opts.duration || 0.9,
         ease: "power2.out",
+        overwrite: true,
         onComplete: () => {
-          gsap.set(container, { clearProps: "opacity,visibility" });
+          gsap.set(targets, { clearProps: "opacity,visibility" });
           resolve();
         }
       });
+    });
+  };
+
+  /** fade the page out (before leaving) */
+  VDJ.fadeOut = function (targets, opts) {
+    opts = opts || {};
+    targets = targets || VDJ.pageParts();
+    if (VDJ.reducedMotion()) return Promise.resolve();
+    return new Promise((resolve) => {
+      gsap.to(targets, {
+        autoAlpha: 0,
+        duration: opts.duration || 0.6,
+        ease: "power2.in",
+        overwrite: true,
+        onComplete: resolve
+      });
+      // never hang on a background tab (no animation frames there)
+      setTimeout(resolve, ((opts.duration || 0.6) + 0.4) * 1000);
     });
   };
 })();

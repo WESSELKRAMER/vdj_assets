@@ -161,7 +161,9 @@
                 maxBufferHole: 0.3,
                 autoStartLoad: true,
                 startLevel: -1, // automatic quality
-                abrEwmaDefaultEstimate: 500000,
+                // start from a realistic bandwidth guess instead of 500 kbps,
+                // so the first frames aren't the blurry lowest rendition
+                abrEwmaDefaultEstimate: 3000000,
                 backBufferLength: 30,
                 lowLatencyMode: false
               }
@@ -245,6 +247,19 @@
       );
     }
 
+    // Lazy players: start loading about one screen before they scroll into
+    // view, so they're ready (not popping in) by the time you see them
+    let preloadIo = null;
+    if ((isLazyTrue || isLazyMeta) && autoplay) {
+      preloadIo = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          attachMediaOnce();
+          preloadIo.disconnect();
+        }
+      }, { rootMargin: "100% 0px 100% 0px" });
+      preloadIo.observe(player);
+    }
+
     // Autoplay: play while in view, pause when out of view
     if (autoplay) {
       io = new IntersectionObserver((entries) => {
@@ -268,11 +283,73 @@
     return function destroy() {
       offs.forEach((off) => off());
       if (io) io.disconnect();
+      if (preloadIo) preloadIo.disconnect();
       try { video.pause(); } catch (e) {}
       if (player._hls) { try { player._hls.destroy(); } catch (e) {} player._hls = null; }
       try { video.removeAttribute("src"); video.load(); } catch (e) {}
     };
   }
+
+  /* ----------------------------------------------------------------------- */
+  /* Images                                                                   */
+  /* Webflow gives every image sizes="100vw", so a 450px image downloads the  */
+  /* full-screen version. We set sizes to the real rendered width and start   */
+  /* loading lazy images a screen early. Images that still arrive late fade   */
+  /* in instead of popping in.                                                */
+  /* ----------------------------------------------------------------------- */
+  VDJ.page("images", function () {
+    const images = Array.from(document.querySelectorAll("img")).filter(
+      (img) => !img.closest(".navbar_wrapper, .project_cards_source") && !(img.complete && img.naturalWidth)
+    );
+    if (!images.length) return;
+
+    images.forEach((img) => {
+      // real width for srcset selection (only for responsive images)
+      if (img.srcset && (!img.sizes || img.sizes === "100vw")) {
+        const w = Math.ceil(img.getBoundingClientRect().width || img.parentElement?.getBoundingClientRect().width || 0);
+        if (w > 0) img.sizes = `${w}px`;
+      }
+      img.classList.add("vdj-img-loading");
+    });
+
+    // fade in when loaded. Listening on the document (capture) also covers
+    // copies made later, e.g. the cards the home canvas clones.
+    const done = (e) => {
+      const img = e.target;
+      if (!img || img.tagName !== "IMG" || !img.classList.contains("vdj-img-loading")) return;
+      // transition only while fading in, so it never slows down GSAP
+      // animations on images later
+      img.classList.add("vdj-img-fade");
+      img.classList.remove("vdj-img-loading");
+      setTimeout(() => img.classList.remove("vdj-img-fade"), 600);
+    };
+    const offs = [VDJ.on(document, "load", done, true), VDJ.on(document, "error", done, true)];
+    // never leave an image hidden
+    const failsafe = setTimeout(() => {
+      document.querySelectorAll("img.vdj-img-loading").forEach((img) => img.classList.remove("vdj-img-loading"));
+    }, 8000);
+    const timers = [failsafe];
+
+    const lazy = images.filter((img) => img.loading === "lazy");
+    let io = null;
+    if (lazy.length && "IntersectionObserver" in window) {
+      io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.loading = "eager"; // starts the download now
+          io.unobserve(entry.target);
+        });
+      }, { rootMargin: "150% 0px 150% 0px" });
+      lazy.forEach((img) => io.observe(img));
+    }
+
+    return () => {
+      offs.forEach((off) => off());
+      timers.forEach(clearTimeout);
+      if (io) io.disconnect();
+      document.querySelectorAll("img.vdj-img-loading").forEach((img) => img.classList.remove("vdj-img-loading"));
+    };
+  });
 
   VDJ.page("bunny-players", function (container) {
     const destroyers = [];

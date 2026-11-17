@@ -189,30 +189,60 @@
 
   VDJ.reducedMotion = () => VDJ.mq("(prefers-reduced-motion: reduce)");
 
-  VDJ.reveal = function (container, opts) {
+  /**
+   * Everything that belongs to the page (not the persistent nav, progress bar
+   * or cursor). Matches the selector in the Webflow head snippet, which hides
+   * these until the reveal. Works on pages with and without a Barba container.
+   */
+  const PERSISTENT = ".navbar_wrapper, .progress-bar-wrap, .cursor, .pcg_modal_overlay, script, style, link, noscript, template";
+  VDJ.pageParts = function () {
+    return Array.from(document.body.children).filter((el) => !el.matches(PERSISTENT));
+  };
+
+  VDJ.reveal = function (targets, opts) {
     opts = opts || {};
+    targets = targets || VDJ.pageParts();
     const html = document.documentElement;
-    if (!opts.instant) gsap.set(container, { autoAlpha: 0 });
+    gsap.set(targets, { autoAlpha: 0 });
     html.classList.remove("vdj-loading");
     html.classList.add("vdj-ready");
     clearTimeout(window.__vdjFailsafe);
     document.dispatchEvent(new CustomEvent("vdj:reveal"));
 
-    if (opts.instant || VDJ.reducedMotion()) {
-      gsap.set(container, { clearProps: "opacity,visibility" });
+    if (VDJ.reducedMotion()) {
+      gsap.set(targets, { clearProps: "opacity,visibility" });
       return Promise.resolve();
     }
 
     return new Promise((resolve) => {
-      gsap.to(container, {
+      gsap.to(targets, {
         autoAlpha: 1,
         duration: opts.duration || 0.9,
         ease: "power2.out",
+        overwrite: true,
         onComplete: () => {
-          gsap.set(container, { clearProps: "opacity,visibility" });
+          gsap.set(targets, { clearProps: "opacity,visibility" });
           resolve();
         }
       });
+    });
+  };
+
+  /** fade the page out (before leaving) */
+  VDJ.fadeOut = function (targets, opts) {
+    opts = opts || {};
+    targets = targets || VDJ.pageParts();
+    if (VDJ.reducedMotion()) return Promise.resolve();
+    return new Promise((resolve) => {
+      gsap.to(targets, {
+        autoAlpha: 0,
+        duration: opts.duration || 0.6,
+        ease: "power2.in",
+        overwrite: true,
+        onComplete: resolve
+      });
+      // never hang on a background tab (no animation frames there)
+      setTimeout(resolve, ((opts.duration || 0.6) + 0.4) * 1000);
     });
   };
 })();
@@ -993,7 +1023,9 @@
                 maxBufferHole: 0.3,
                 autoStartLoad: true,
                 startLevel: -1, // automatic quality
-                abrEwmaDefaultEstimate: 500000,
+                // start from a realistic bandwidth guess instead of 500 kbps,
+                // so the first frames aren't the blurry lowest rendition
+                abrEwmaDefaultEstimate: 3000000,
                 backBufferLength: 30,
                 lowLatencyMode: false
               }
@@ -1077,6 +1109,19 @@
       );
     }
 
+    // Lazy players: start loading about one screen before they scroll into
+    // view, so they're ready (not popping in) by the time you see them
+    let preloadIo = null;
+    if ((isLazyTrue || isLazyMeta) && autoplay) {
+      preloadIo = new IntersectionObserver((entries) => {
+        if (entries.some((e) => e.isIntersecting)) {
+          attachMediaOnce();
+          preloadIo.disconnect();
+        }
+      }, { rootMargin: "100% 0px 100% 0px" });
+      preloadIo.observe(player);
+    }
+
     // Autoplay: play while in view, pause when out of view
     if (autoplay) {
       io = new IntersectionObserver((entries) => {
@@ -1100,11 +1145,73 @@
     return function destroy() {
       offs.forEach((off) => off());
       if (io) io.disconnect();
+      if (preloadIo) preloadIo.disconnect();
       try { video.pause(); } catch (e) {}
       if (player._hls) { try { player._hls.destroy(); } catch (e) {} player._hls = null; }
       try { video.removeAttribute("src"); video.load(); } catch (e) {}
     };
   }
+
+  /* ----------------------------------------------------------------------- */
+  /* Images                                                                   */
+  /* Webflow gives every image sizes="100vw", so a 450px image downloads the  */
+  /* full-screen version. We set sizes to the real rendered width and start   */
+  /* loading lazy images a screen early. Images that still arrive late fade   */
+  /* in instead of popping in.                                                */
+  /* ----------------------------------------------------------------------- */
+  VDJ.page("images", function () {
+    const images = Array.from(document.querySelectorAll("img")).filter(
+      (img) => !img.closest(".navbar_wrapper, .project_cards_source") && !(img.complete && img.naturalWidth)
+    );
+    if (!images.length) return;
+
+    images.forEach((img) => {
+      // real width for srcset selection (only for responsive images)
+      if (img.srcset && (!img.sizes || img.sizes === "100vw")) {
+        const w = Math.ceil(img.getBoundingClientRect().width || img.parentElement?.getBoundingClientRect().width || 0);
+        if (w > 0) img.sizes = `${w}px`;
+      }
+      img.classList.add("vdj-img-loading");
+    });
+
+    // fade in when loaded. Listening on the document (capture) also covers
+    // copies made later, e.g. the cards the home canvas clones.
+    const done = (e) => {
+      const img = e.target;
+      if (!img || img.tagName !== "IMG" || !img.classList.contains("vdj-img-loading")) return;
+      // transition only while fading in, so it never slows down GSAP
+      // animations on images later
+      img.classList.add("vdj-img-fade");
+      img.classList.remove("vdj-img-loading");
+      setTimeout(() => img.classList.remove("vdj-img-fade"), 600);
+    };
+    const offs = [VDJ.on(document, "load", done, true), VDJ.on(document, "error", done, true)];
+    // never leave an image hidden
+    const failsafe = setTimeout(() => {
+      document.querySelectorAll("img.vdj-img-loading").forEach((img) => img.classList.remove("vdj-img-loading"));
+    }, 8000);
+    const timers = [failsafe];
+
+    const lazy = images.filter((img) => img.loading === "lazy");
+    let io = null;
+    if (lazy.length && "IntersectionObserver" in window) {
+      io = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (!entry.isIntersecting) return;
+          entry.target.loading = "eager"; // starts the download now
+          io.unobserve(entry.target);
+        });
+      }, { rootMargin: "150% 0px 150% 0px" });
+      lazy.forEach((img) => io.observe(img));
+    }
+
+    return () => {
+      offs.forEach((off) => off());
+      timers.forEach(clearTimeout);
+      if (io) io.disconnect();
+      document.querySelectorAll("img.vdj-img-loading").forEach((img) => img.classList.remove("vdj-img-loading"));
+    };
+  });
 
   VDJ.page("bunny-players", function (container) {
     const destroyers = [];
@@ -2670,16 +2777,16 @@
       VDJ.refreshScroll();
       // not awaited: Barba ignores clicks while a transition runs, and you
       // should be able to click away during the intro fade
-      VDJ.reveal(next.container, { duration: 1.1 });
+      VDJ.reveal(VDJ.pageParts(), { duration: 1.1 });
     },
 
     async leave({ current }) {
       scrollMemory.set(current.url.href, window.scrollY);
       if (window.lenis) window.lenis.stop();
       if (VDJ.closeNavigation) await VDJ.closeNavigation();
-
-      if (VDJ.reducedMotion()) return;
-      await gsap.to(current.container, { autoAlpha: 0, duration: 0.6, ease: "power2.in", overwrite: true });
+      // all page parts, not only the container (some templates have content
+      // outside it, and those pages are opened with a full load)
+      await VDJ.fadeOut(VDJ.pageParts());
     },
 
     afterLeave({ current, next }) {
@@ -2784,19 +2891,45 @@
         }
       });
     } else {
-      // No Barba: classic page load
+      // No Barba container on this page: classic page loads, but with the
+      // same fade out / fade in as the Barba transition
       const container = fallbackContainer();
-      // Only fade in what the head snippet actually hid; a page without a
-      // container is already visible, fading it would cause a flash
-      const wasHidden = container.matches(CONTAINER_SELECTOR);
       VDJ.mount(container, location.pathname);
       VDJ.fontsReady(800).then(() => {
         VDJ.refreshScroll();
-        VDJ.reveal(container, { duration: 1.1, instant: !wasHidden });
+        VDJ.reveal(VDJ.pageParts(), { duration: 1.1 });
       });
+      document.addEventListener("click", onFallbackLinkClick);
     }
 
+    // Back/forward from the browser cache: the page may still be faded out
+    window.addEventListener("pageshow", (e) => {
+      if (!e.persisted) return;
+      leaving = false;
+      if (window.lenis) window.lenis.start();
+      gsap.set(VDJ.pageParts(), { clearProps: "opacity,visibility" });
+    });
+
     window.addEventListener("load", () => VDJ.refreshScroll(), { once: true });
+  }
+
+  let leaving = false;
+
+  function onFallbackLinkClick(e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest("a[href]");
+    if (!a || (a.target && a.target !== "_self")) return;
+    const href = a.getAttribute("href");
+    if (!href || href.startsWith("#") || preventBarba({ el: a, href: a.href })) return;
+    const url = new URL(a.href, location.href);
+    if (url.pathname === location.pathname && url.search === location.search) return; // same page / anchor
+
+    e.preventDefault();
+    if (leaving) return;
+    leaving = true;
+    (VDJ.closeNavigation ? VDJ.closeNavigation() : Promise.resolve())
+      .then(() => VDJ.fadeOut(VDJ.pageParts()))
+      .then(() => { location.href = url.href; });
   }
 
   if (document.readyState === "loading") {

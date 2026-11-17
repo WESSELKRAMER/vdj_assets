@@ -141,16 +141,16 @@
       VDJ.refreshScroll();
       // not awaited: Barba ignores clicks while a transition runs, and you
       // should be able to click away during the intro fade
-      VDJ.reveal(next.container, { duration: 1.1 });
+      VDJ.reveal(VDJ.pageParts(), { duration: 1.1 });
     },
 
     async leave({ current }) {
       scrollMemory.set(current.url.href, window.scrollY);
       if (window.lenis) window.lenis.stop();
       if (VDJ.closeNavigation) await VDJ.closeNavigation();
-
-      if (VDJ.reducedMotion()) return;
-      await gsap.to(current.container, { autoAlpha: 0, duration: 0.6, ease: "power2.in", overwrite: true });
+      // all page parts, not only the container (some templates have content
+      // outside it, and those pages are opened with a full load)
+      await VDJ.fadeOut(VDJ.pageParts());
     },
 
     afterLeave({ current, next }) {
@@ -255,19 +255,45 @@
         }
       });
     } else {
-      // No Barba: classic page load
+      // No Barba container on this page: classic page loads, but with the
+      // same fade out / fade in as the Barba transition
       const container = fallbackContainer();
-      // Only fade in what the head snippet actually hid; a page without a
-      // container is already visible, fading it would cause a flash
-      const wasHidden = container.matches(CONTAINER_SELECTOR);
       VDJ.mount(container, location.pathname);
       VDJ.fontsReady(800).then(() => {
         VDJ.refreshScroll();
-        VDJ.reveal(container, { duration: 1.1, instant: !wasHidden });
+        VDJ.reveal(VDJ.pageParts(), { duration: 1.1 });
       });
+      document.addEventListener("click", onFallbackLinkClick);
     }
 
+    // Back/forward from the browser cache: the page may still be faded out
+    window.addEventListener("pageshow", (e) => {
+      if (!e.persisted) return;
+      leaving = false;
+      if (window.lenis) window.lenis.start();
+      gsap.set(VDJ.pageParts(), { clearProps: "opacity,visibility" });
+    });
+
     window.addEventListener("load", () => VDJ.refreshScroll(), { once: true });
+  }
+
+  let leaving = false;
+
+  function onFallbackLinkClick(e) {
+    if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+    const a = e.target.closest("a[href]");
+    if (!a || (a.target && a.target !== "_self")) return;
+    const href = a.getAttribute("href");
+    if (!href || href.startsWith("#") || preventBarba({ el: a, href: a.href })) return;
+    const url = new URL(a.href, location.href);
+    if (url.pathname === location.pathname && url.search === location.search) return; // same page / anchor
+
+    e.preventDefault();
+    if (leaving) return;
+    leaving = true;
+    (VDJ.closeNavigation ? VDJ.closeNavigation() : Promise.resolve())
+      .then(() => VDJ.fadeOut(VDJ.pageParts()))
+      .then(() => { location.href = url.href; });
   }
 
   if (document.readyState === "loading") {
