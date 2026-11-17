@@ -1159,6 +1159,9 @@
       VDJ.on(video, "pause", () => { pendingPlay = false; setStatus("paused"); }),
       VDJ.on(video, "waiting", () => setStatus("loading")),
       VDJ.on(video, "canplay", () => readyIfIdle(player, pendingPlay)),
+      // first frame is there: show the video (CSS fades it in), even if it
+      // hasn't started playing yet
+      VDJ.on(video, "loadeddata", () => player.setAttribute("data-player-frame", "true")),
       VDJ.on(video, "ended", () => { pendingPlay = false; setStatus("paused"); setActivated(false); })
     );
 
