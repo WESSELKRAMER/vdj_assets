@@ -157,7 +157,33 @@
     // iOS: the address bar showing/hiding resizes the viewport. Without this,
     // every resize triggers a ScrollTrigger refresh which makes the page jump.
     ScrollTrigger.config({ ignoreMobileResize: true });
+
+    watchPageHeight();
   };
+
+  /**
+   * ScrollTriggers measure their start/end once. When the page grows later
+   * (lazy images, videos getting their size, fonts), everything below is
+   * measured too high: the footer parallax was already finished before the
+   * footer came into view, by up to 1300px on Over ons. Re-measure whenever
+   * the page height changes.
+   */
+  function watchPageHeight() {
+    if (typeof ResizeObserver === "undefined") return;
+    let lastHeight = document.documentElement.scrollHeight;
+    let timer = null;
+    const ro = new ResizeObserver(() => {
+      const h = document.documentElement.scrollHeight;
+      if (Math.abs(h - lastHeight) < 2) return;
+      lastHeight = h;
+      clearTimeout(timer);
+      timer = setTimeout(() => {
+        lastHeight = document.documentElement.scrollHeight;
+        VDJ.refreshScroll();
+      }, 200);
+    });
+    ro.observe(document.body);
+  }
 
   VDJ.setupLenis = function () {
     if (window.lenis || typeof Lenis === "undefined") return;
