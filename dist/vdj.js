@@ -2324,6 +2324,53 @@
   }
 
   /* ----------------------------------------------------------------------- */
+  /* Home H1 ("Werk aan de wereld"): subtle depth                             */
+  /* Desktop: the heading tilts a few degrees towards the mouse and drifts a  */
+  /* few px. Everywhere: a slow float. Pauses once the overlay is gone.       */
+  /* ----------------------------------------------------------------------- */
+  function initHeadingMotion(container) {
+    const h1 = container.querySelector(".canvas_overlay_content .overlay_text_wrapper h1");
+    if (!h1 || VDJ.reducedMotion()) return;
+
+    const MAX_TILT_X = 5; // deg
+    const MAX_TILT_Y = 7; // deg
+    const MAX_SHIFT = 10; // px
+    const overlay = h1.closest(".canvas_overlay_content");
+    const offs = [];
+
+    gsap.set(h1.parentElement, { perspective: 900 });
+    gsap.set(h1, { transformOrigin: "50% 50%", force3D: true });
+
+    // slow float (yPercent, so it adds to the mouse shift on y)
+    const float = gsap.to(h1, { yPercent: -3, duration: 3.2, ease: "sine.inOut", yoyo: true, repeat: -1 });
+
+    if (VDJ.mq("(hover: hover) and (pointer: fine)")) {
+      const opts = { duration: 1.4, ease: "power3.out" };
+      const rx = gsap.quickTo(h1, "rotationX", opts);
+      const ry = gsap.quickTo(h1, "rotationY", opts);
+      const x = gsap.quickTo(h1, "x", opts);
+      const y = gsap.quickTo(h1, "y", opts);
+
+      const onMove = (e) => {
+        if (overlay && getComputedStyle(overlay).display === "none") return;
+        const nx = (e.clientX / window.innerWidth) * 2 - 1; // -1..1
+        const ny = (e.clientY / window.innerHeight) * 2 - 1;
+        ry(nx * MAX_TILT_Y);
+        rx(-ny * MAX_TILT_X);
+        x(nx * MAX_SHIFT);
+        y(ny * MAX_SHIFT * 0.6);
+      };
+      const onLeave = () => { rx(0); ry(0); x(0); y(0); };
+      offs.push(VDJ.on(window, "mousemove", onMove, { passive: true }), VDJ.on(document.documentElement, "mouseleave", onLeave));
+    }
+
+    return () => {
+      offs.forEach((off) => off());
+      float.kill();
+    };
+  }
+
+  /* ----------------------------------------------------------------------- */
   /* Mount                                                                    */
   /* ----------------------------------------------------------------------- */
   VDJ.page("home", function (container) {
@@ -2343,7 +2390,8 @@
       initModeSwitcherPill(container, api),
       initCanvas(container, api),
       initHeroListToggle(container, api),
-      initDisappearText(container)
+      initDisappearText(container),
+      initHeadingMotion(container)
     ].filter(Boolean);
 
     return () => cleanups.reverse().forEach((fn) => fn());
@@ -2380,8 +2428,7 @@
   const COLOR_STAGGER = 0.12;
   const COLOR_DURATION = 0.3;
   const COLOR_TOTAL = (COLOR_COUNT - 1) * COLOR_STAGGER + COLOR_DURATION;
-  const BUBBLE_VISIBLE_DURATION = 0.295;
-  const BUBBLE_END_CAP = 0.63;
+  const BUBBLE_FADE = 0.02; // share of the scroll range a bubble takes to fade in
 
   // The 12 line frames are 4 unique drawings in a fixed order
   const LINE_FILES = [1, 2, 3, 5];
@@ -2429,15 +2476,19 @@
     }
 
     /* Speech bubbles ------------------------------------------------------ */
+    // Each bubble appears together with its colour layer (data-layer) and
+    // stays until the illustration scrolls away, where the whole bubble stack
+    // fades out. Before, each bubble had its own timeline length, which put
+    // the last one at ~90% of the scroll: after the illustration unpins once
+    // the section got shorter, so you barely saw it.
     section.querySelectorAll("[data-bubble]").forEach((bubble) => {
       const layerIndex = parseInt(bubble.dataset.layer, 10) || 0;
       const start = colorLayerStart(layerIndex) + 0.01;
-      const end = Math.min(start + BUBBLE_VISIBLE_DURATION, BUBBLE_END_CAP);
 
       gsap.set(bubble, { opacity: 0, y: 3 });
       gsap.timeline({ scrollTrigger: { ...range, scrub: true } })
-        .to(bubble, { opacity: 1, y: 0, ease: "none", duration: 0.03, immediateRender: false }, start)
-        .to(bubble, { opacity: 0, y: -3, ease: "none", duration: 0.03, immediateRender: false }, end - 0.03);
+        .to(bubble, { opacity: 1, y: 0, ease: "none", duration: BUBBLE_FADE, immediateRender: false }, start)
+        .set({}, {}, 1); // timeline runs 0..1 = the whole scroll range, same as the colour layers
     });
 
     const bubbleWrap = section.querySelector(".sequence_bubbles");

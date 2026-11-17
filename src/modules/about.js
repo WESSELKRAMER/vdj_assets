@@ -27,8 +27,7 @@
   const COLOR_STAGGER = 0.12;
   const COLOR_DURATION = 0.3;
   const COLOR_TOTAL = (COLOR_COUNT - 1) * COLOR_STAGGER + COLOR_DURATION;
-  const BUBBLE_VISIBLE_DURATION = 0.295;
-  const BUBBLE_END_CAP = 0.63;
+  const BUBBLE_FADE = 0.02; // share of the scroll range a bubble takes to fade in
 
   // The 12 line frames are 4 unique drawings in a fixed order
   const LINE_FILES = [1, 2, 3, 5];
@@ -76,15 +75,19 @@
     }
 
     /* Speech bubbles ------------------------------------------------------ */
+    // Each bubble appears together with its colour layer (data-layer) and
+    // stays until the illustration scrolls away, where the whole bubble stack
+    // fades out. Before, each bubble had its own timeline length, which put
+    // the last one at ~90% of the scroll: after the illustration unpins once
+    // the section got shorter, so you barely saw it.
     section.querySelectorAll("[data-bubble]").forEach((bubble) => {
       const layerIndex = parseInt(bubble.dataset.layer, 10) || 0;
       const start = colorLayerStart(layerIndex) + 0.01;
-      const end = Math.min(start + BUBBLE_VISIBLE_DURATION, BUBBLE_END_CAP);
 
       gsap.set(bubble, { opacity: 0, y: 3 });
       gsap.timeline({ scrollTrigger: { ...range, scrub: true } })
-        .to(bubble, { opacity: 1, y: 0, ease: "none", duration: 0.03, immediateRender: false }, start)
-        .to(bubble, { opacity: 0, y: -3, ease: "none", duration: 0.03, immediateRender: false }, end - 0.03);
+        .to(bubble, { opacity: 1, y: 0, ease: "none", duration: BUBBLE_FADE, immediateRender: false }, start)
+        .set({}, {}, 1); // timeline runs 0..1 = the whole scroll range, same as the colour layers
     });
 
     const bubbleWrap = section.querySelector(".sequence_bubbles");
