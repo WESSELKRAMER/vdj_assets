@@ -869,6 +869,8 @@
 (function () {
   "use strict";
   const VDJ = window.VDJ;
+  const IS_IOS = /iP(hone|ad|od)/.test(navigator.userAgent) ||
+    (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1); // iPadOS
 
   function safePlay(video) {
     const p = video.play();
@@ -995,8 +997,74 @@
     video.playsInline = true;
     if (typeof video.disableRemotePlayback !== "undefined") video.disableRemotePlayback = true;
 
-    const isSafariNative = !!video.canPlayType("application/vnd.apple.mpegurl");
-    const canUseHlsJs = !!(window.Hls && Hls.isSupported()) && !isSafariNative;
+    // Which engine: hls.js wherever it's supported, except iPhone/iPad where
+    // native HLS is the reliable path. Recent Chrome also plays HLS natively,
+    // but with the Bunny CDN that fails intermittently
+    // (ERR_CONTENT_DECODING_FAILED -> video stuck), so we don't use it there.
+    const nativeHls = !!video.canPlayType("application/vnd.apple.mpegurl");
+    const hlsJsSupported = !!(window.Hls && Hls.isSupported());
+    const isSafariNative = nativeHls && (IS_IOS || !hlsJsSupported);
+    const canUseHlsJs = hlsJsSupported && !isSafariNative;
+    let nativeRetries = 0;
+    let hlsRecoveries = 0;
+
+    function useHlsJs() {
+      if (player._hls) { try { player._hls.destroy(); } catch (e) {} player._hls = null; }
+      try { video.removeAttribute("src"); video.load(); } catch (e) {}
+      const hls = new Hls(
+        isBasic
+          ? { maxBufferLength: 10 }
+          : {
+              // Background loops are short: 30s ahead is plenty and keeps
+              // memory down on pages with many videos
+              maxBufferLength: 30,
+              maxMaxBufferLength: 60,
+              maxBufferSize: 60 * 1000 * 1000,
+              maxBufferHole: 0.3,
+              autoStartLoad: true,
+              startLevel: -1, // automatic quality
+              // start from a realistic bandwidth guess instead of 500 kbps,
+              // so the first frames aren't the blurry lowest rendition
+              abrEwmaDefaultEstimate: 3000000,
+              backBufferLength: 30,
+              lowLatencyMode: false
+            }
+      );
+      hls.attachMedia(video);
+      hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(src));
+      hls.on(Hls.Events.MANIFEST_PARSED, () => {
+        readyIfIdle(player, pendingPlay);
+        if (updateSize === "true") {
+          const best = bestLevel(hls.levels || []);
+          if (best && best.width && best.height) setBeforeRatio(player, updateSize, best.width, best.height);
+        }
+        if (pendingPlay || (autoplay && lastPauseBy === "" && isInView)) safePlay(video);
+      });
+      // recover instead of getting stuck on a failed request or decode
+      hls.on(Hls.Events.ERROR, (e, data) => {
+        if (!data || !data.fatal) return;
+        if (hlsRecoveries++ >= 3) { try { hls.destroy(); } catch (err) {} player._hls = null; return; }
+        if (data.type === Hls.ErrorTypes.NETWORK_ERROR) setTimeout(() => hls.startLoad(), 1000);
+        else if (data.type === Hls.ErrorTypes.MEDIA_ERROR) hls.recoverMediaError();
+        else setTimeout(useHlsJs, 1000);
+      });
+      player._hls = hls;
+    }
+
+    // native playback failed: fall back to hls.js, or retry once
+    offs.push(VDJ.on(video, "error", () => {
+      if (!isAttached || player._hls) return;
+      if (hlsJsSupported && !player._hls) { useHlsJs(); return; }
+      if (nativeRetries++ < 2) {
+        setTimeout(() => {
+          video.src = src;
+          video.load();
+          if (pendingPlay || isInView) safePlay(video);
+        }, 800 * nativeRetries);
+      }
+    }));
+
+    let isInView = false;
 
     function attachMediaOnce() {
       if (isAttached) return;
@@ -1011,35 +1079,7 @@
           if (updateSize === "true") setBeforeRatio(player, updateSize, video.videoWidth, video.videoHeight);
         }, { once: true });
       } else if (canUseHlsJs) {
-        const hls = new Hls(
-          isBasic
-            ? { maxBufferLength: 10 }
-            : {
-                // Background loops are short: 30s ahead is plenty and keeps
-                // memory down on pages with many videos
-                maxBufferLength: 30,
-                maxMaxBufferLength: 60,
-                maxBufferSize: 60 * 1000 * 1000,
-                maxBufferHole: 0.3,
-                autoStartLoad: true,
-                startLevel: -1, // automatic quality
-                // start from a realistic bandwidth guess instead of 500 kbps,
-                // so the first frames aren't the blurry lowest rendition
-                abrEwmaDefaultEstimate: 3000000,
-                backBufferLength: 30,
-                lowLatencyMode: false
-              }
-        );
-        hls.attachMedia(video);
-        hls.on(Hls.Events.MEDIA_ATTACHED, () => hls.loadSource(src));
-        hls.on(Hls.Events.MANIFEST_PARSED, () => {
-          readyIfIdle(player, pendingPlay);
-          if (updateSize === "true") {
-            const best = bestLevel(hls.levels || []);
-            if (best && best.width && best.height) setBeforeRatio(player, updateSize, best.width, best.height);
-          }
-        });
-        player._hls = hls;
+        useHlsJs();
       } else {
         video.preload = "auto";
         video.src = src;
@@ -1126,7 +1166,8 @@
     if (autoplay) {
       io = new IntersectionObserver((entries) => {
         entries.forEach((entry) => {
-          if (entry.isIntersecting && entry.intersectionRatio > 0) {
+          isInView = entry.isIntersecting && entry.intersectionRatio > 0;
+          if (isInView) {
             if ((isLazyTrue || isLazyMeta) && !isAttached) attachMediaOnce();
             if (lastPauseBy === "io" || (video.paused && lastPauseBy !== "manual")) {
               setStatus("loading");
