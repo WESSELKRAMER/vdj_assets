@@ -278,6 +278,19 @@ body::-webkit-scrollbar {
   object-fit: cover;
 }
 
+/* Menu toggle: visible focus ring for keyboard users only */
+[data-navigation-toggle="toggle"] {
+  cursor: pointer;
+}
+[data-navigation-toggle="toggle"]:focus {
+  outline: none;
+}
+[data-navigation-toggle="toggle"]:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: 3px;
+  border-radius: 5rem;
+}
+
 /* Media fade-in ------------------------------------------------------------ */
 /* Images that weren't loaded yet fade in instead of popping in */
 img.vdj-img-loading {

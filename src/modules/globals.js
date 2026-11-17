@@ -42,26 +42,72 @@
       });
     }
 
+    // The toggle is a <div> in Webflow (a Block can't be a <button>), so we
+    // give it button semantics: focusable, Enter/Space, aria-expanded.
+    const toggles = Array.from(document.querySelectorAll('[data-navigation-toggle="toggle"]'));
+    const menuGroup = navigation.querySelector(".hamburger-nav__group");
+    if (menuGroup && !menuGroup.id) menuGroup.id = "vdj-menu";
+
+    toggles.forEach((btn) => {
+      if (btn.tagName !== "BUTTON") {
+        btn.setAttribute("role", "button");
+        btn.setAttribute("tabindex", "0");
+      }
+      if (menuGroup) btn.setAttribute("aria-controls", menuGroup.id);
+      btn.setAttribute("aria-expanded", "false");
+    });
+
+    function syncToggleState() {
+      const open = isActive();
+      toggles.forEach((btn) => btn.setAttribute("aria-expanded", open ? "true" : "false"));
+    }
+
     function openNavigation() {
       navStatusEl.setAttribute("data-navigation-status", "active");
+      syncToggleState();
       animateOpen();
     }
 
     function closeNavigation() {
       if (openTween) openTween.kill();
       navStatusEl.setAttribute("data-navigation-status", "not-active");
+      syncToggleState();
       resetLinkOpacity();
       setClosedState();
     }
 
-    document.querySelectorAll('[data-navigation-toggle="toggle"]').forEach((btn) => {
+    toggles.forEach((btn) => {
       btn.addEventListener("click", () => (isActive() ? closeNavigation() : openNavigation()));
+      btn.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " " || e.key === "Spacebar") {
+          e.preventDefault(); // no page scroll on Space
+          btn.click();
+          // opened from the keyboard: start on the first menu link
+          if (isActive() && menuLinks[0]) setTimeout(() => menuLinks[0].focus(), 50);
+        }
+      });
+    });
+
+    // While the menu is open, Tab cycles through the menu links and the toggle
+    // (in the HTML the toggle comes after the menu, so Tab would leave it)
+    document.addEventListener("keydown", (e) => {
+      if (e.key !== "Tab" || !isActive()) return;
+      const order = [...menuLinks, ...toggles.slice(0, 1)];
+      const i = order.indexOf(document.activeElement);
+      if (i === -1) return;
+      e.preventDefault();
+      const next = order[(i + (e.shiftKey ? -1 : 1) + order.length) % order.length];
+      next.focus();
     });
     document.querySelectorAll('[data-navigation-toggle="close"]').forEach((btn) => {
       btn.addEventListener("click", closeNavigation);
     });
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape" && isActive()) closeNavigation();
+      if (e.key !== "Escape" || !isActive()) return;
+      const focusWasInMenu = menuGroup && menuGroup.contains(document.activeElement);
+      closeNavigation();
+      // keyboard users land back on the toggle instead of somewhere random
+      if (focusWasInMenu || toggles.includes(document.activeElement)) toggles[0] && toggles[0].focus();
     });
 
     menuLinks.forEach((link) => {
