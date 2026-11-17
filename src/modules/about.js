@@ -17,6 +17,13 @@
   const DEFAULT_LENGTH_MOBILE = 800;
 
   const COLOR_COUNT = 11;
+  // Layers 4, 8 and 9 are wall/floor fills. They fade in after some detail
+  // layers (paint splat, plants) but belong underneath them, as in the final
+  // composites (10, 11). Without this the splat faded in, got covered by the
+  // wall, and came back with layer 10.
+  const BACKGROUND_LAYERS = [4, 8, 9];
+  const COMPOSITE_LAYERS = [10, 11];
+  const layerZ = (n) => (BACKGROUND_LAYERS.includes(n) ? 1 : COMPOSITE_LAYERS.includes(n) ? 3 : 2);
   const COLOR_STAGGER = 0.12;
   const COLOR_DURATION = 0.3;
   const COLOR_TOTAL = (COLOR_COUNT - 1) * COLOR_STAGGER + COLOR_DURATION;
@@ -57,6 +64,7 @@
         img.alt = "";
         img.decoding = "async";
         img.dataset.gsap = "true";
+        img.style.zIndex = String(layerZ(i));
         colorWrap.appendChild(img);
         layers.push(img);
       }
