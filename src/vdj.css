@@ -301,6 +301,51 @@ img.vdj-img-fade {
   width: 45% !important;
   height: auto !important;
 }
+/* Service sliders: one fixed height for every slide, the width follows the
+   image's own aspect ratio (nothing cropped). The slider can't change height
+   anymore when a taller image loads while sliding. */
+[data-swiper-id] {
+  --vdj-slide-h: clamp(18rem, 36vw, 30rem);
+}
+[data-swiper-id] .swiper-wrapper {
+  align-items: flex-start;
+}
+[data-swiper-id] .swiper-slide {
+  height: var(--vdj-slide-h) !important;
+}
+[data-swiper-id] .swiper-slide:not(.is--video) {
+  width: auto !important;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
+}
+[data-swiper-id] .swiper-slide .future-card {
+  height: 100%;
+  min-height: 0;
+}
+[data-swiper-id] .swiper-slide:not(.is--video) .future-card {
+  flex: 0 0 auto;
+  width: auto;
+}
+[data-swiper-id] .swiper-slide:not(.is--video) img {
+  display: block;
+  height: 100% !important;
+  width: auto !important;
+  max-width: none;
+  object-fit: contain;
+}
+[data-swiper-id] .swiper-slide.is--video .video_div {
+  min-height: 0;
+  height: 100%;
+}
+/* Phones: a wide image may not be wider than the screen. It scales down
+   inside the same fixed slide height (still its own ratio, never cropped). */
+@media (max-width: 767px) {
+  [data-swiper-id] .swiper-slide:not(.is--video) img {
+    max-width: calc(100vw - 4rem);
+    object-position: left top;
+  }
+}
 
 /* Footer ------------------------------------------------------------------- */
 [data-footer-parallax] {

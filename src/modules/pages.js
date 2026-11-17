@@ -160,6 +160,7 @@
   VDJ.page("swipers", function (container) {
     if (typeof Swiper === "undefined") return;
     const swipers = [];
+    const offs = [];
 
     container.querySelectorAll("[data-swiper-id]").forEach((section) => {
       const swiperEl = section.querySelector(".swiper");
@@ -167,24 +168,48 @@
       const prevEl = section.querySelector(".future-swiper-prev");
       if (!swiperEl || !nextEl || !prevEl) return;
 
-      swipers.push(
-        new Swiper(swiperEl, {
-          slidesPerView: "auto",
-          slidesPerGroup: 1,
-          spaceBetween: 8,
-          speed: 700,
-          grabCursor: true,
-          centeredSlides: false,
-          loop: false,
-          normalizeSlideIndex: true,
-          watchOverflow: true,
-          autoHeight: false,
-          navigation: { nextEl, prevEl }
-        })
-      );
+      // Slide widths come from the images (fixed height, natural ratio), so
+      // load them all up front and let Swiper re-measure as each one arrives.
+      const imgs = Array.from(swiperEl.querySelectorAll(".swiper-slide:not(.is--video) img"));
+      const firstSlide = swiperEl.querySelector(".swiper-slide");
+      const slideH = firstSlide ? firstSlide.getBoundingClientRect().height : 0;
+      imgs.forEach((img) => {
+        img.loading = "eager";
+        // widest expected image (landscape ~16:9) at this height, for srcset
+        if (slideH && img.srcset) img.sizes = `${Math.ceil(slideH * 1.8)}px`;
+      });
+
+      const swiper = new Swiper(swiperEl, {
+        slidesPerView: "auto",
+        slidesPerGroup: 1,
+        spaceBetween: 8,
+        speed: 700,
+        grabCursor: true,
+        centeredSlides: false,
+        loop: false,
+        normalizeSlideIndex: true,
+        watchOverflow: true,
+        autoHeight: false,
+        navigation: { nextEl, prevEl }
+      });
+      swipers.push(swiper);
+
+      let raf = null;
+      const update = () => {
+        if (raf) return;
+        raf = requestAnimationFrame(() => { raf = null; if (!swiper.destroyed) swiper.update(); });
+      };
+      imgs.forEach((img) => {
+        if (!(img.complete && img.naturalWidth)) {
+          offs.push(VDJ.on(img, "load", update), VDJ.on(img, "error", update));
+        }
+      });
     });
 
-    return () => swipers.forEach((s) => { try { s.destroy(true, true); } catch (e) {} });
+    return () => {
+      offs.forEach((off) => off());
+      swipers.forEach((s) => { try { s.destroy(true, true); } catch (e) {} });
+    };
   });
 
   /* ----------------------------------------------------------------------- */
