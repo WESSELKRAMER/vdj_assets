@@ -58,8 +58,20 @@
       const speed = Number.isFinite(speedAttr) ? speedAttr : 15;
       const direction = (wrap.getAttribute("data-parallax-direction") || "up").toLowerCase() === "down" ? 1 : -1;
 
-      gsap.fromTo(media, { yPercent: direction * -speed }, {
-        yPercent: direction * speed,
+      // The media is exactly as big as its wrapper, so moving it would open a
+      // gap at the top/bottom edge (and hide the wrapper's rounded corners).
+      // Scale it up by the travel distance so it always covers the wrapper.
+      const travel = speed / 100;
+      const scale = 1 + 2 * travel;
+      const shift = travel * 100 * 0.96; // stay just inside the overscan
+      if (media.tagName === "IMG" && media.srcset) {
+        const w = Math.ceil(wrap.getBoundingClientRect().width * scale);
+        if (w > 0) media.sizes = `${w}px`; // fetch a large enough file for the scaled image
+      }
+
+      gsap.set(media, { scale, transformOrigin: "50% 50%" });
+      gsap.fromTo(media, { yPercent: direction * -shift }, {
+        yPercent: direction * shift,
         ease: "none",
         scrollTrigger: { trigger: wrap, start: "top bottom", end: "bottom top", scrub: true, invalidateOnRefresh: true }
       });
