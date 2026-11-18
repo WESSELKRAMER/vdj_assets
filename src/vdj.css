@@ -615,6 +615,17 @@ img.vdj-img-fade {
   }
 }
 
+/* Case hero: the wrapper has the same 8px radius as the other images, but the
+   parallax moves the image with a transform and browsers then ignore the
+   rounded overflow clip. clip-path rounds whatever is inside. */
+.case_hero_visual_wrapper {
+  border-radius: 8px;
+  overflow: hidden;
+  clip-path: inset(0 round 8px);
+  -webkit-clip-path: inset(0 round 8px);
+  isolation: isolate;
+}
+
 /* Misc ------------------------------------------------------------------- */
 .scribble_wrap {
   position: relative;

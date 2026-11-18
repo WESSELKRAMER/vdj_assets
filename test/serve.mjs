@@ -15,7 +15,8 @@ const types = { ".js": "text/javascript", ".css": "text/css", ".avif": "image/av
 
 function localAssets(html) {
   return html
-    .replace(/https:\/\/cdn\.jsdelivr\.net\/gh\/WESSELKRAMER\/vdj_assets@COMMIT\//g, "/")
+    // the placeholder in webflow/*.html and any pinned hash on the live site
+    .replace(/https:\/\/cdn\.jsdelivr\.net\/gh\/WESSELKRAMER\/vdj_assets@[A-Za-z0-9]+\/(?=dist\/)/g, "/")
     .replace("/dist/vdj.min.js", MIN ? "/dist/vdj.min.js" : "/dist/vdj.js");
 }
 
@@ -32,6 +33,10 @@ function transform(html) {
   const fs = html.indexOf("<!-- Lenis JS -->");
   const fe = html.lastIndexOf("</body>");
   if (fs > -1 && fe > fs) html = html.slice(0, fs) + footer + html.slice(fe);
+
+  // Live site already runs the new snippets: just point its pinned
+  // vdj_assets files at the local build
+  html = localAssets(html);
 
   // 3. what you'll set in Webflow: data-barba="container" on the page wrapper
   html = html.replace(/data-transition-container=""/, 'data-barba="container" data-transition-container=""');
