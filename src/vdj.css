@@ -347,9 +347,28 @@ img.vdj-img-fade {
   max-width: none;
   object-fit: contain;
 }
+/* Video slides follow the same rule as images: fixed height, width from the
+   video's own ratio (--vdj-ar is set from the video once it loads). */
+[data-swiper-id] .swiper-slide.is--video {
+  width: auto !important;
+  flex: 0 0 auto;
+  min-width: 0;
+  max-width: none;
+}
+[data-swiper-id] .swiper-slide.is--video .future-card {
+  flex: 0 0 auto;
+  width: auto;
+}
 [data-swiper-id] .swiper-slide.is--video .video_div {
   min-height: 0;
+  height: auto;
+  aspect-ratio: var(--vdj-ar, 1.7778);
+  width: min(calc(var(--vdj-slide-h) * var(--vdj-ar, 1.7778)), calc(100vw - 4rem));
+}
+[data-swiper-id] .swiper-slide.is--video .video_div video {
+  width: 100%;
   height: 100%;
+  object-fit: cover;
 }
 /* Phones: a wide image may not be wider than the screen. It scales down
    inside the same fixed slide height (still its own ratio, never cropped). */

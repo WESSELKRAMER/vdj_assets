@@ -1,4 +1,4 @@
-/*! Vandejong site scripts | built 2026-11-17 */
+/*! Vandejong site scripts | built 2026-11-18 */
 /* ---- src/core.js ---- */
 /* =========================================================================
    VDJ core
@@ -871,6 +871,20 @@
         if (!(img.complete && img.naturalWidth)) {
           offs.push(VDJ.on(img, "load", update), VDJ.on(img, "error", update));
         }
+      });
+
+      // Video slides: width from the video's own ratio, like the images
+      swiperEl.querySelectorAll(".swiper-slide.is--video").forEach((slide) => {
+        const video = slide.querySelector("video");
+        const box = slide.querySelector(".video_div") || slide;
+        if (!video) return;
+        const applyRatio = () => {
+          if (!video.videoWidth || !video.videoHeight) return;
+          box.style.setProperty("--vdj-ar", (video.videoWidth / video.videoHeight).toFixed(4));
+          update();
+        };
+        if (video.readyState >= 1) applyRatio();
+        offs.push(VDJ.on(video, "loadedmetadata", applyRatio));
       });
     });
 
