@@ -34,6 +34,28 @@
     if (before) before.style.paddingTop = (h / w) * 100 + "%";
   }
 
+  // Case videos sit in frames with a fixed aspect ratio from Webflow (16:9,
+  // 3:2, 4:5). When the video has another ratio it either leaves an empty
+  // strip (and the rounded corners end up on that invisible strip) or gets
+  // cut off. Give the frame the video's own ratio so it wraps the video.
+  function fitFrameToVideo(player, video) {
+    const w = video.videoWidth, h = video.videoHeight;
+    if (!w || !h || !player.closest(".section_case_element")) return;
+    if (player.closest(".swiper-slide, [data-parallax]")) return;
+    if (player.getAttribute("data-player-update-size") === "cover") return;
+    let el = player;
+    for (let i = 0; i < 5 && el; i++, el = el.parentElement) {
+      if (getComputedStyle(el).aspectRatio !== "auto") {
+        el.style.aspectRatio = `${w} / ${h}`;
+        el.style.height = "auto";
+        video.style.width = "100%";
+        video.style.height = "100%";
+        video.style.objectFit = "cover";
+        return;
+      }
+    }
+  }
+
   function resolveUrl(base, rel) {
     try { return new URL(rel, base).toString(); } catch (e) { return rel; }
   }
@@ -274,6 +296,7 @@
       // first frame is there: show the video (CSS fades it in), even if it
       // hasn't started playing yet
       VDJ.on(video, "loadeddata", () => player.setAttribute("data-player-frame", "true")),
+      VDJ.on(video, "loadedmetadata", () => fitFrameToVideo(player, video)),
       VDJ.on(video, "ended", () => { pendingPlay = false; setStatus("paused"); setActivated(false); })
     );
 
